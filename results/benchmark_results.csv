@@ -1,0 +1,51 @@
+puzzle,algorithm,heuristic,weight,solved,moves,expanded,generated,max_frontier,max_visited,time_sec
+easy_1.txt,BFS,-,1.0,YES,3,18,73,17,34,0.001375
+easy_1.txt,UCS,-,1.0,YES,3,18,73,17,34,0.001124
+easy_1.txt,DFS(limit=30),-,1.0,YES,3,14,58,34,30,0.00046
+easy_1.txt,IDDFS(max=30),-,1.0,YES,3,45,49,9,18,0.000521
+easy_1.txt,Greedy,h_non_uniform_tubes,1.0,YES,3,4,13,10,13,0.000191
+easy_1.txt,Greedy,h_color_transitions,1.0,YES,3,6,22,14,19,0.00031
+easy_1.txt,A*,h_non_uniform_tubes,1.0,YES,3,7,25,13,19,0.000303
+easy_1.txt,A*,h_color_transitions,1.0,YES,3,17,69,17,33,0.000578
+easy_1.txt,Weighted A*,h_non_uniform_tubes,1.5,YES,3,4,13,10,13,0.000202
+easy_1.txt,Weighted A*,h_color_transitions,1.5,YES,3,13,53,20,29,0.000506
+easy_2.txt,BFS,-,1.0,YES,0,1,0,1,1,7e-06
+easy_2.txt,UCS,-,1.0,YES,0,1,0,1,1,1.3e-05
+easy_2.txt,DFS(limit=30),-,1.0,YES,0,1,0,1,1,9e-06
+easy_2.txt,IDDFS(max=30),-,1.0,YES,0,1,0,1,1,1.9e-05
+easy_2.txt,Greedy,h_non_uniform_tubes,1.0,YES,0,1,0,1,1,1.3e-05
+easy_2.txt,Greedy,h_color_transitions,1.0,YES,0,1,0,1,1,1.3e-05
+easy_2.txt,A*,h_non_uniform_tubes,1.0,YES,0,1,0,1,1,1.4e-05
+easy_2.txt,A*,h_color_transitions,1.0,YES,0,1,0,1,1,1.4e-05
+easy_2.txt,Weighted A*,h_non_uniform_tubes,1.5,YES,0,1,0,1,1,1.3e-05
+easy_2.txt,Weighted A*,h_color_transitions,1.5,YES,0,1,0,1,1,1.8e-05
+easy_3.txt,BFS,-,1.0,YES,7,416,1834,250,665,0.015669
+easy_3.txt,UCS,-,1.0,YES,7,416,1834,250,665,0.01284
+easy_3.txt,DFS(limit=30),-,1.0,YES,12,118,231,83,126,0.002146
+easy_3.txt,IDDFS(max=30),-,1.0,YES,9,24371,24965,28,358,0.160851
+easy_3.txt,Greedy,h_non_uniform_tubes,1.0,YES,7,25,138,64,88,0.001104
+easy_3.txt,Greedy,h_color_transitions,1.0,YES,8,16,77,44,59,0.001244
+easy_3.txt,A*,h_non_uniform_tubes,1.0,YES,7,85,379,96,180,0.003174
+easy_3.txt,A*,h_color_transitions,1.0,YES,7,256,1115,221,476,0.008292
+easy_3.txt,Weighted A*,h_non_uniform_tubes,1.5,YES,7,44,214,70,106,0.001709
+easy_3.txt,Weighted A*,h_color_transitions,1.5,YES,7,48,225,92,129,0.001829
+easy_4.txt,BFS,-,1.0,YES,7,2769,22365,1881,4649,0.136506
+easy_4.txt,UCS,-,1.0,YES,7,2769,22365,1881,4649,0.130153
+easy_4.txt,DFS(limit=30),-,1.0,YES,10,10612,11316,188,1059,0.074988
+easy_4.txt,IDDFS(max=30),-,1.0,YES,8,705578,728607,50,2470,4.447209
+easy_4.txt,Greedy,h_non_uniform_tubes,1.0,YES,7,33,298,167,199,0.001976
+easy_4.txt,Greedy,h_color_transitions,1.0,YES,9,84,755,303,386,0.004672
+easy_4.txt,A*,h_non_uniform_tubes,1.0,YES,7,256,2188,724,979,0.014576
+easy_4.txt,A*,h_color_transitions,1.0,YES,7,1870,15037,1860,3729,0.099229
+easy_4.txt,Weighted A*,h_non_uniform_tubes,1.5,YES,7,96,829,325,394,0.004944
+easy_4.txt,Weighted A*,h_color_transitions,1.5,YES,7,239,2028,711,839,0.013941
+easy_5.txt,BFS,-,1.0,YES,3,18,73,17,34,0.00073
+easy_5.txt,UCS,-,1.0,YES,3,18,73,17,34,0.001009
+easy_5.txt,DFS(limit=30),-,1.0,YES,3,14,58,34,30,0.000468
+easy_5.txt,IDDFS(max=30),-,1.0,YES,3,45,49,9,18,0.000592
+easy_5.txt,Greedy,h_non_uniform_tubes,1.0,YES,3,4,13,10,13,0.000221
+easy_5.txt,Greedy,h_color_transitions,1.0,YES,3,6,22,14,19,0.000519
+easy_5.txt,A*,h_non_uniform_tubes,1.0,YES,3,7,25,13,19,0.000357
+easy_5.txt,A*,h_color_transitions,1.0,YES,3,17,69,17,33,0.000741
+easy_5.txt,Weighted A*,h_non_uniform_tubes,1.5,YES,3,4,13,10,13,0.00122
+easy_5.txt,Weighted A*,h_color_transitions,1.5,YES,3,13,53,20,29,0.000699

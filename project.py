@@ -20,7 +20,8 @@ from __future__ import annotations
 from pathlib import Path
 from collections import deque
 from dataclasses import dataclass
-from typing import List, Tuple, Iterable, Optional
+from typing import List, Tuple, Iterable, Optional, Callable
+import csv
 import heapq
 import itertools
 import time
@@ -195,8 +196,6 @@ def state_stats(state: State, capacity: int) -> Tuple[int, int, int]:
 
 
 # --- Search framework ----------------------------------------------------
-
-import time
 
 
 @dataclass
@@ -483,6 +482,176 @@ def iddfs(initial: State, capacity: int, max_depth: int) -> SearchResult:
     )
 
 
+# --- Heuristics + informed search ---------------------------------------
+
+HeuristicFn = Callable[[State, int], float]
+
+
+def h_non_uniform_tubes(state: State, capacity: int) -> float:
+    """Count non-empty tubes that are not already full and uniform."""
+    count = 0
+    for tube in state:
+        if not tube:
+            continue
+        if len(tube) != capacity or len(set(tube)) != 1:
+            count += 1
+    return float(count)
+
+
+def h_color_transitions(state: State, capacity: int) -> float:
+    """Count color changes inside tubes (bottom->top)."""
+    transitions = 0
+    for tube in state:
+        for i in range(1, len(tube)):
+            if tube[i] != tube[i - 1]:
+                transitions += 1
+    return float(transitions)
+
+
+def greedy_search(initial: State, capacity: int, heuristic: HeuristicFn) -> SearchResult:
+    """Greedy best-first search using only h(n)."""
+    start = time.perf_counter()
+
+    initial = normalize(initial)
+    pq: List[tuple[float, int, State]] = []
+    tie = itertools.count()
+    heapq.heappush(pq, (heuristic(initial, capacity), next(tie), initial))
+
+    visited = {initial}
+    parent: Dict[State, Optional[State]] = {initial: None}
+    action: Dict[State, Move] = {}
+
+    expanded = 0
+    generated = 0
+    max_frontier = 1
+    max_visited = 1
+    solution_state: Optional[State] = None
+
+    while pq:
+        max_frontier = max(max_frontier, len(pq))
+        _, _, current = heapq.heappop(pq)
+        expanded += 1
+
+        if is_goal(current, capacity):
+            solution_state = current
+            break
+
+        for mv in legal_moves(current, capacity):
+            child = normalize(apply_move(current, mv, capacity))
+            generated += 1
+            if child in visited:
+                continue
+            visited.add(child)
+            parent[child] = current
+            action[child] = mv
+            heapq.heappush(pq, (heuristic(child, capacity), next(tie), child))
+
+        max_visited = max(max_visited, len(visited))
+
+    end = time.perf_counter()
+
+    moves: List[Move] = []
+    if solution_state is not None:
+        key = solution_state
+        while parent[key] is not None:
+            moves.append(action[key])
+            key = parent[key]
+        moves.reverse()
+
+    return SearchResult(
+        solved=(solution_state is not None),
+        moves=moves,
+        expanded=expanded,
+        generated=generated,
+        max_frontier=max_frontier,
+        max_visited=max_visited,
+        time_sec=end - start,
+    )
+
+
+def _astar_like(initial: State, capacity: int, heuristic: HeuristicFn, weight: float) -> SearchResult:
+    """A* family search with f(n) = g(n) + weight * h(n)."""
+    start = time.perf_counter()
+
+    initial = normalize(initial)
+    pq: List[tuple[float, int, int, State]] = []
+    tie = itertools.count()
+
+    g0 = 0
+    f0 = g0 + weight * heuristic(initial, capacity)
+    heapq.heappush(pq, (f0, g0, next(tie), initial))
+
+    best_g: Dict[State, int] = {initial: 0}
+    parent: Dict[State, Optional[State]] = {initial: None}
+    action: Dict[State, Move] = {}
+
+    expanded = 0
+    generated = 0
+    max_frontier = 1
+    max_visited = 1
+    solution_state: Optional[State] = None
+
+    while pq:
+        max_frontier = max(max_frontier, len(pq))
+        _, g, _, current = heapq.heappop(pq)
+
+        if g != best_g.get(current, float("inf")):
+            continue
+
+        expanded += 1
+
+        if is_goal(current, capacity):
+            solution_state = current
+            break
+
+        for mv in legal_moves(current, capacity):
+            child = normalize(apply_move(current, mv, capacity))
+            generated += 1
+
+            new_g = g + 1
+            old_g = best_g.get(child)
+            if old_g is None or new_g < old_g:
+                best_g[child] = new_g
+                parent[child] = current
+                action[child] = mv
+                f = new_g + weight * heuristic(child, capacity)
+                heapq.heappush(pq, (f, new_g, next(tie), child))
+
+        max_visited = max(max_visited, len(best_g))
+
+    end = time.perf_counter()
+
+    moves: List[Move] = []
+    if solution_state is not None:
+        key = solution_state
+        while parent[key] is not None:
+            moves.append(action[key])
+            key = parent[key]
+        moves.reverse()
+
+    return SearchResult(
+        solved=(solution_state is not None),
+        moves=moves,
+        expanded=expanded,
+        generated=generated,
+        max_frontier=max_frontier,
+        max_visited=max_visited,
+        time_sec=end - start,
+    )
+
+
+def astar(initial: State, capacity: int, heuristic: HeuristicFn) -> SearchResult:
+    """Classic A*: f(n) = g(n) + h(n)."""
+    return _astar_like(initial, capacity, heuristic=heuristic, weight=1.0)
+
+
+def weighted_astar(initial: State, capacity: int, heuristic: HeuristicFn, weight: float = 1.5) -> SearchResult:
+    """Weighted A*: f(n) = g(n) + w * h(n), with w >= 1."""
+    if weight < 1.0:
+        raise ValueError("weight must be >= 1.0")
+    return _astar_like(initial, capacity, heuristic=heuristic, weight=weight)
+
+
 # --- Simple self‑tests ----------------------------------------------------
 
 
@@ -545,6 +714,18 @@ def _test_core():
     assert res_id.solved, f"IDDFS failed: {res_id}"
     assert is_goal(apply_moves(tiny, res_id.moves, cap2), cap2)
 
+    res_greedy = greedy_search(tiny, cap2, heuristic=h_non_uniform_tubes)
+    assert res_greedy.solved, f"Greedy failed: {res_greedy}"
+    assert is_goal(apply_moves(tiny, res_greedy.moves, cap2), cap2)
+
+    res_astar = astar(tiny, cap2, heuristic=h_non_uniform_tubes)
+    assert res_astar.solved, f"A* failed: {res_astar}"
+    assert is_goal(apply_moves(tiny, res_astar.moves, cap2), cap2)
+
+    res_wastar = weighted_astar(tiny, cap2, heuristic=h_non_uniform_tubes, weight=1.5)
+    assert res_wastar.solved, f"Weighted A* failed: {res_wastar}"
+    assert is_goal(apply_moves(tiny, res_wastar.moves, cap2), cap2)
+
     print("core tests passed")
 
 ## --- Puzzle loading and testing utilities ----------------------------------
@@ -562,8 +743,52 @@ def apply_moves(state: State, moves: List[Move], capacity: int) -> State:
         state = apply_move(state, mv, capacity)
     return state
 
+
+def export_results(rows: List[Dict[str, object]], csv_path: str | Path, txt_path: str | Path) -> None:
+    """Export benchmark rows to CSV and TXT files."""
+    csv_path = Path(csv_path)
+    txt_path = Path(txt_path)
+    csv_path.parent.mkdir(parents=True, exist_ok=True)
+    txt_path.parent.mkdir(parents=True, exist_ok=True)
+
+    fields = [
+        "puzzle",
+        "algorithm",
+        "heuristic",
+        "weight",
+        "solved",
+        "moves",
+        "expanded",
+        "generated",
+        "max_frontier",
+        "max_visited",
+        "time_sec",
+    ]
+
+    with csv_path.open("w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=fields)
+        writer.writeheader()
+        for row in rows:
+            writer.writerow(row)
+
+    with txt_path.open("w", encoding="utf-8") as f:
+        header = (
+            f"{'puzzle':<12} {'algorithm':<18} {'heuristic':<20} {'w':<5} "
+            f"{'solved':<7} {'moves':<6} {'expanded':<9} {'generated':<10} "
+            f"{'maxQ':<7} {'visited':<8} {'time(s)':<10}"
+        )
+        f.write(header + "\n")
+        f.write("-" * len(header) + "\n")
+        for row in rows:
+            f.write(
+                f"{str(row['puzzle']):<12} {str(row['algorithm']):<18} {str(row['heuristic']):<20} "
+                f"{str(row['weight']):<5} {str(row['solved']):<7} {str(row['moves']):<6} "
+                f"{str(row['expanded']):<9} {str(row['generated']):<10} {str(row['max_frontier']):<7} "
+                f"{str(row['max_visited']):<8} {float(row['time_sec']):<10.4f}\n"
+            )
+
 def test_puzzles_folder(folder: str = "puzzles") -> None:
-    """Load all .txt puzzles in a folder, run BFS, and verify solutions."""
+    """Run all search algorithms on puzzles and export benchmark results."""
     folder_path = Path(folder)
     if not folder_path.exists():
         raise FileNotFoundError(f"Folder not found: {folder_path.resolve()}")
@@ -572,52 +797,77 @@ def test_puzzles_folder(folder: str = "puzzles") -> None:
     if not puzzle_files:
         raise FileNotFoundError(f"No .txt puzzle files found in {folder_path.resolve()}")
 
-    print(f"Running BFS on {len(puzzle_files)} puzzles in {folder_path}...\n")
+    print(f"Running benchmarks on {len(puzzle_files)} puzzles in {folder_path}...\n")
 
     failures = 0
+    rows: List[Dict[str, object]] = []
+
     for file in puzzle_files:
         state, cap = load_puzzle_file(file)
 
         # Normalize once at start (optional, keeps consistency)
         state0 = normalize(state)
 
-        res = bfs(state0, cap)
+        algorithms: List[Tuple[str, str, float, Callable[[], SearchResult]]] = [
+            ("BFS", "-", 1.0, lambda s=state0, c=cap: bfs(s, c)),
+            ("UCS", "-", 1.0, lambda s=state0, c=cap: ucs(s, c)),
+            ("DFS(limit=30)", "-", 1.0, lambda s=state0, c=cap: dfs(s, c, depth_limit=30)),
+            ("IDDFS(max=30)", "-", 1.0, lambda s=state0, c=cap: iddfs(s, c, max_depth=30)),
+            ("Greedy", "h_non_uniform_tubes", 1.0, lambda s=state0, c=cap: greedy_search(s, c, heuristic=h_non_uniform_tubes)),
+            ("Greedy", "h_color_transitions", 1.0, lambda s=state0, c=cap: greedy_search(s, c, heuristic=h_color_transitions)),
+            ("A*", "h_non_uniform_tubes", 1.0, lambda s=state0, c=cap: astar(s, c, heuristic=h_non_uniform_tubes)),
+            ("A*", "h_color_transitions", 1.0, lambda s=state0, c=cap: astar(s, c, heuristic=h_color_transitions)),
+            ("Weighted A*", "h_non_uniform_tubes", 1.5, lambda s=state0, c=cap: weighted_astar(s, c, heuristic=h_non_uniform_tubes, weight=1.5)),
+            ("Weighted A*", "h_color_transitions", 1.5, lambda s=state0, c=cap: weighted_astar(s, c, heuristic=h_color_transitions, weight=1.5)),
+        ]
 
-        if not res.solved:
-            failures += 1
-            print(f"❌ {file.name}: NOT SOLVED | expanded={res.expanded} generated={res.generated} time={res.time_sec:.4f}s")
-            continue
+        print(f"Puzzle {file.name}:")
+        for algo_name, heuristic_name, weight, runner in algorithms:
+            res = runner()
+            valid_solution = False
+            if res.solved:
+                final_state = apply_moves(state0, res.moves, cap)
+                valid_solution = is_goal(final_state, cap)
 
-        final_state = apply_moves(state0, res.moves, cap)
-        ok = is_goal(final_state, cap)
-        
-        if not ok:
-            failures += 1
-            print(f"❌ {file.name}: SOLVER CLAIMED SOLVED but final state is not goal!")
-            print("Final state:\n", state_to_string(final_state, cap))
-        else:
-            print(f"✅ {file.name}: moves={len(res.moves)} expanded={res.expanded} gen={res.generated} "
-                  f"maxQ={res.max_frontier} visited={res.max_visited} time={res.time_sec:.4f}s")
+            if res.solved and not valid_solution:
+                failures += 1
+                solved_text = "INVALID"
+            else:
+                solved_text = "YES" if res.solved else "NO"
 
-        res_dfs = dfs(state0, cap, depth_limit=30)
+            print(
+                f"  {algo_name:<13} h={heuristic_name:<20} w={weight:<3} solved={solved_text:<7} "
+                f"moves={len(res.moves):<4} expanded={res.expanded:<6} time={res.time_sec:.4f}s"
+            )
 
+            rows.append(
+                {
+                    "puzzle": file.name,
+                    "algorithm": algo_name,
+                    "heuristic": heuristic_name,
+                    "weight": weight,
+                    "solved": solved_text,
+                    "moves": len(res.moves),
+                    "expanded": res.expanded,
+                    "generated": res.generated,
+                    "max_frontier": res.max_frontier,
+                    "max_visited": res.max_visited,
+                    "time_sec": round(res.time_sec, 6),
+                }
+            )
+        print()
 
-        if res_dfs.solved:
-            assert is_goal(apply_moves(state0, res_dfs.moves, cap), cap)
-            print(f"   DFS: moves={len(res_dfs.moves)} expanded={res_dfs.expanded} time={res_dfs.time_sec:.4f}s")
-        else:
-            print(f"   DFS: NOT SOLVED (limit)")
+    export_results(
+        rows,
+        csv_path=Path("results") / "benchmark_results.csv",
+        txt_path=Path("results") / "benchmark_results.txt",
+    )
 
-        res_id = iddfs(state0, cap, max_depth=30)
-
-        if res_id.solved:
-            print(f"   IDDFS: moves={len(res_id.moves)} expanded={res_id.expanded} time={res_id.time_sec:.4f}s")
-        else:
-            print("   IDDFS: NOT SOLVED (max depth)")
+    print("Results exported to results/benchmark_results.csv and results/benchmark_results.txt")
 
     print("\nDone.")
     if failures:
-        raise AssertionError(f"{failures} puzzle(s) failed.")
+        raise AssertionError(f"{failures} invalid solution(s) detected.")
 
 
 if __name__ == "__main__":
