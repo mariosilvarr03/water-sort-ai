@@ -1,52 +1,12 @@
 puzzle       algorithm          heuristic            w     solved  moves  expanded  generated  maxQ    visited  time(s)   
 --------------------------------------------------------------------------------------------------------------------------
-easy_1.txt   BFS                -                    1.0   YES     3      18        73         17      34       0.0014    
-easy_1.txt   UCS                -                    1.0   YES     3      18        73         17      34       0.0011    
-easy_1.txt   DFS(limit=30)      -                    1.0   YES     3      14        58         34      30       0.0005    
-easy_1.txt   IDDFS(max=30)      -                    1.0   YES     3      45        49         9       18       0.0005    
-easy_1.txt   Greedy             h_non_uniform_tubes  1.0   YES     3      4         13         10      13       0.0002    
-easy_1.txt   Greedy             h_color_transitions  1.0   YES     3      6         22         14      19       0.0003    
-easy_1.txt   A*                 h_non_uniform_tubes  1.0   YES     3      7         25         13      19       0.0003    
-easy_1.txt   A*                 h_color_transitions  1.0   YES     3      17        69         17      33       0.0006    
-easy_1.txt   Weighted A*        h_non_uniform_tubes  1.5   YES     3      4         13         10      13       0.0002    
-easy_1.txt   Weighted A*        h_color_transitions  1.5   YES     3      13        53         20      29       0.0005    
-easy_2.txt   BFS                -                    1.0   YES     0      1         0          1       1        0.0000    
-easy_2.txt   UCS                -                    1.0   YES     0      1         0          1       1        0.0000    
-easy_2.txt   DFS(limit=30)      -                    1.0   YES     0      1         0          1       1        0.0000    
-easy_2.txt   IDDFS(max=30)      -                    1.0   YES     0      1         0          1       1        0.0000    
-easy_2.txt   Greedy             h_non_uniform_tubes  1.0   YES     0      1         0          1       1        0.0000    
-easy_2.txt   Greedy             h_color_transitions  1.0   YES     0      1         0          1       1        0.0000    
-easy_2.txt   A*                 h_non_uniform_tubes  1.0   YES     0      1         0          1       1        0.0000    
-easy_2.txt   A*                 h_color_transitions  1.0   YES     0      1         0          1       1        0.0000    
-easy_2.txt   Weighted A*        h_non_uniform_tubes  1.5   YES     0      1         0          1       1        0.0000    
-easy_2.txt   Weighted A*        h_color_transitions  1.5   YES     0      1         0          1       1        0.0000    
-easy_3.txt   BFS                -                    1.0   YES     7      416       1834       250     665      0.0157    
-easy_3.txt   UCS                -                    1.0   YES     7      416       1834       250     665      0.0128    
-easy_3.txt   DFS(limit=30)      -                    1.0   YES     12     118       231        83      126      0.0021    
-easy_3.txt   IDDFS(max=30)      -                    1.0   YES     9      24371     24965      28      358      0.1609    
-easy_3.txt   Greedy             h_non_uniform_tubes  1.0   YES     7      25        138        64      88       0.0011    
-easy_3.txt   Greedy             h_color_transitions  1.0   YES     8      16        77         44      59       0.0012    
-easy_3.txt   A*                 h_non_uniform_tubes  1.0   YES     7      85        379        96      180      0.0032    
-easy_3.txt   A*                 h_color_transitions  1.0   YES     7      256       1115       221     476      0.0083    
-easy_3.txt   Weighted A*        h_non_uniform_tubes  1.5   YES     7      44        214        70      106      0.0017    
-easy_3.txt   Weighted A*        h_color_transitions  1.5   YES     7      48        225        92      129      0.0018    
-easy_4.txt   BFS                -                    1.0   YES     7      2769      22365      1881    4649     0.1365    
-easy_4.txt   UCS                -                    1.0   YES     7      2769      22365      1881    4649     0.1302    
-easy_4.txt   DFS(limit=30)      -                    1.0   YES     10     10612     11316      188     1059     0.0750    
-easy_4.txt   IDDFS(max=30)      -                    1.0   YES     8      705578    728607     50      2470     4.4472    
-easy_4.txt   Greedy             h_non_uniform_tubes  1.0   YES     7      33        298        167     199      0.0020    
-easy_4.txt   Greedy             h_color_transitions  1.0   YES     9      84        755        303     386      0.0047    
-easy_4.txt   A*                 h_non_uniform_tubes  1.0   YES     7      256       2188       724     979      0.0146    
-easy_4.txt   A*                 h_color_transitions  1.0   YES     7      1870      15037      1860    3729     0.0992    
-easy_4.txt   Weighted A*        h_non_uniform_tubes  1.5   YES     7      96        829        325     394      0.0049    
-easy_4.txt   Weighted A*        h_color_transitions  1.5   YES     7      239       2028       711     839      0.0139    
-easy_5.txt   BFS                -                    1.0   YES     3      18        73         17      34       0.0007    
-easy_5.txt   UCS                -                    1.0   YES     3      18        73         17      34       0.0010    
-easy_5.txt   DFS(limit=30)      -                    1.0   YES     3      14        58         34      30       0.0005    
-easy_5.txt   IDDFS(max=30)      -                    1.0   YES     3      45        49         9       18       0.0006    
-easy_5.txt   Greedy             h_non_uniform_tubes  1.0   YES     3      4         13         10      13       0.0002    
-easy_5.txt   Greedy             h_color_transitions  1.0   YES     3      6         22         14      19       0.0005    
-easy_5.txt   A*                 h_non_uniform_tubes  1.0   YES     3      7         25         13      19       0.0004    
-easy_5.txt   A*                 h_color_transitions  1.0   YES     3      17        69         17      33       0.0007    
-easy_5.txt   Weighted A*        h_non_uniform_tubes  1.5   YES     3      4         13         10      13       0.0012    
-easy_5.txt   Weighted A*        h_color_transitions  1.5   YES     3      13        53         20      29       0.0007    
+easy_5.txt   BFS                -                    1.0   YES     3      18        73         17      34       0.0004    
+easy_5.txt   UCS                -                    1.0   YES     3      18        73         17      34       0.0004    
+easy_5.txt   DFS(limit=30)      -                    1.0   YES     3      14        58         34      30       0.0003    
+easy_5.txt   IDDFS(max=30)      -                    1.0   YES     3      45        49         9       18       0.0003    
+easy_5.txt   Greedy             h_non_uniform_tubes  1.0   YES     3      4         13         10      13       0.0001    
+easy_5.txt   Greedy             h_color_transitions  1.0   YES     3      6         22         14      19       0.0001    
+easy_5.txt   A*                 h_non_uniform_tubes  1.0   YES     3      7         25         13      19       0.0001    
+easy_5.txt   A*                 h_color_transitions  1.0   YES     3      17        69         17      33       0.0003    
+easy_5.txt   Weighted A*        h_non_uniform_tubes  1.5   YES     3      4         13         10      13       0.0001    
+easy_5.txt   Weighted A*        h_color_transitions  1.5   YES     3      13        53         20      29       0.0002    

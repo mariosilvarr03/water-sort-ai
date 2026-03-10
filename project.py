@@ -22,6 +22,7 @@ from collections import deque
 from dataclasses import dataclass
 from typing import List, Tuple, Iterable, Optional, Callable
 import csv
+import argparse
 import heapq
 import itertools
 import time
@@ -184,6 +185,60 @@ def state_to_string(state: State, capacity: int) -> str:
         elems += ["."] * (capacity - len(elems))
         lines.append(" ".join(elems))
     return "\n".join(lines)
+
+
+def state_to_visual_string(state: State, capacity: int) -> str:
+    """Render state as a vertical tube diagram for console output."""
+    if not state:
+        return "(empty state)"
+
+    header = " ".join(f" T{i} " for i in range(len(state)))
+    lines: List[str] = [header]
+
+    # Print from top level to bottom so tubes look vertical.
+    for level in range(capacity - 1, -1, -1):
+        row: List[str] = []
+        for tube in state:
+            token = tube[level] if level < len(tube) else "."
+            row.append(f"[{token}]")
+        lines.append(" ".join(row))
+    return "\n".join(lines)
+
+
+def _indent_block(text: str, prefix: str) -> str:
+    return "\n".join(prefix + line for line in text.splitlines())
+
+
+def print_solution_trace(algo_name: str, initial: State, moves: List[Move], capacity: int, solved: bool) -> None:
+    """Print a visual per-algorithm trace with initial/final states and actions."""
+    print(f"    Trace for {algo_name}:")
+    print("      Initial state:")
+    print(_indent_block(state_to_visual_string(initial, capacity), "        "))
+
+    if not solved:
+        print("      Actions: (no solution found)")
+        print("      Final state: (same as initial)")
+        print()
+        return
+
+    if not moves:
+        print("      Actions: (none)")
+        print("      Final state:")
+        print(_indent_block(state_to_visual_string(initial, capacity), "        "))
+        print()
+        return
+
+    current = initial
+    print(f"      Actions ({len(moves)}):")
+    for step, mv in enumerate(moves, start=1):
+        nxt = apply_move(current, mv, capacity)
+        print(f"        {step:02d}. T{mv[0]} -> T{mv[1]}")
+        print(_indent_block(state_to_visual_string(nxt, capacity), "          "))
+        current = nxt
+
+    print("      Final state:")
+    print(_indent_block(state_to_visual_string(current, capacity), "        "))
+    print()
 
 
 # --- Utility helpers -----------------------------------------------------
@@ -787,8 +842,11 @@ def export_results(rows: List[Dict[str, object]], csv_path: str | Path, txt_path
                 f"{str(row['max_visited']):<8} {float(row['time_sec']):<10.4f}\n"
             )
 
-def test_puzzles_folder(folder: str = "puzzles") -> None:
-    """Run all search algorithms on puzzles and export benchmark results."""
+def test_puzzles_folder(folder: str = "puzzles", puzzle_name: Optional[str] = None) -> None:
+    """Run all search algorithms on puzzles and export benchmark results.
+
+    If puzzle_name is provided, only that single file is executed.
+    """
     folder_path = Path(folder)
     if not folder_path.exists():
         raise FileNotFoundError(f"Folder not found: {folder_path.resolve()}")
@@ -796,6 +854,13 @@ def test_puzzles_folder(folder: str = "puzzles") -> None:
     puzzle_files = sorted(folder_path.glob("*.txt"))
     if not puzzle_files:
         raise FileNotFoundError(f"No .txt puzzle files found in {folder_path.resolve()}")
+
+    if puzzle_name is not None:
+        puzzle_files = [p for p in puzzle_files if p.name == puzzle_name]
+        if not puzzle_files:
+            raise FileNotFoundError(
+                f"Puzzle not found: {puzzle_name} in {folder_path.resolve()}"
+            )
 
     print(f"Running benchmarks on {len(puzzle_files)} puzzles in {folder_path}...\n")
 
@@ -840,6 +905,14 @@ def test_puzzles_folder(folder: str = "puzzles") -> None:
                 f"moves={len(res.moves):<4} expanded={res.expanded:<6} time={res.time_sec:.4f}s"
             )
 
+            print_solution_trace(
+                algo_name=algo_name,
+                initial=state0,
+                moves=res.moves,
+                capacity=cap,
+                solved=(res.solved and valid_solution),
+            )
+
             rows.append(
                 {
                     "puzzle": file.name,
@@ -871,6 +944,25 @@ def test_puzzles_folder(folder: str = "puzzles") -> None:
 
 
 if __name__ == "__main__":
-    _test_core()
-    test_puzzles_folder("puzzles")   # change folder name if yours differs
+    parser = argparse.ArgumentParser(description="Water Sort benchmark runner")
+    parser.add_argument(
+        "--folder",
+        default="puzzles",
+        help="Folder containing puzzle .txt files (default: puzzles)",
+    )
+    parser.add_argument(
+        "--puzzle",
+        default=None,
+        help="Run only one puzzle file by name, e.g. easy_3.txt",
+    )
+    parser.add_argument(
+        "--skip-core",
+        action="store_true",
+        help="Skip core self-tests and run only puzzle benchmarks",
+    )
+    args = parser.parse_args()
+
+    if not args.skip_core:
+        _test_core()
+    test_puzzles_folder(args.folder, puzzle_name=args.puzzle)
     # _demo()
