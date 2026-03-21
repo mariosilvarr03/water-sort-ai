@@ -25,8 +25,8 @@ color_choices = [
 
 TUBE_CAPACITY = 4
 AI_STEP_DELAY_MS = 350
-MODE_HUMAN = 'HUMANO'
-MODE_AI = 'IA'
+MODE_HUMAN = 'HUMAN'
+MODE_AI = 'AI'
 ALGORITHMS = ['BFS', 'DFS', 'IDDFS', 'UCS']
 DFS_DEPTH_LIMIT = 30
 IDDFS_MAX_DEPTH = 30
@@ -45,7 +45,7 @@ win = False
 mode_selected = False
 game_mode = None
 selected_algorithm_idx = 0
-status_message = 'Escolher modo: Humano ou IA.'
+status_message = 'Choose a mode: Human or AI.'
 metrics_message = ''
 
 ai_moves = []
@@ -232,11 +232,12 @@ def reset_ai(clear_metrics=False):
 
 def print_ai_metrics(algorithm, result):
     print()
-    print('===== IA Metrics =====')
+    print('===== AI Metrics =====')
     print(f'Algorithm: {algorithm}')
     print(f'Number of moves: {len(result.moves)}')
-    print(f'Numero de states: {result.expanded}')
-    print(f'Tempo demorado: {result.time_sec:.4f}s')
+    print(f'Expanded states: {result.expanded}')
+    print(f'Generated states: {result.generated}')
+    print(f'Elapsed time: {result.time_sec:.4f}s')
     print('======================')
 
 
@@ -249,9 +250,9 @@ def set_mode(mode):
     reset_ai(clear_metrics=False)
 
     if mode == MODE_HUMAN:
-        status_message = 'Modo Humano ativo.'
+        status_message = 'Human mode active.'
     else:
-        status_message = 'Modo IA ativo. Escolhe algoritmo e clica em Correr IA.'
+        status_message = 'AI mode active. Choose an algorithm and click Run AI.'
 
 
 def reset_to_initial():
@@ -264,7 +265,7 @@ def reset_to_initial():
     selected = False
     select_rect = 100
     reset_ai(clear_metrics=False)
-    status_message = 'Tabuleiro reiniciado.'
+    status_message = 'Board reset.'
 
 
 def start_ai_solver():
@@ -273,14 +274,14 @@ def start_ai_solver():
     global ai_last_result, ai_last_algorithm, ai_metrics_printed
 
     if game_mode != MODE_AI:
-        status_message = 'Seleciona modo IA primeiro.'
+        status_message = 'Select AI mode first.'
         return
     if ai_animating:
         return
 
     current_state = to_state(tube_colors)
     if is_goal(current_state, TUBE_CAPACITY):
-        status_message = 'O puzzle ja esta resolvido.'
+        status_message = 'The puzzle is already solved.'
         return
 
     algorithm = ALGORITHMS[selected_algorithm_idx]
@@ -293,13 +294,12 @@ def start_ai_solver():
     elif algorithm == 'UCS':
         result = ucs(current_state, TUBE_CAPACITY)
     else:
-        status_message = f'Algoritmo {algorithm} nao implementado.'
+        status_message = f'Algorithm {algorithm} is not implemented.'
         return
 
     metrics_message = (
-        f'{algorithm} | solved={result.solved} | moves={len(result.moves)} | '
-        f'expanded={result.expanded} | generated={result.generated} | '
-        f'max_frontier={result.max_frontier} | time={result.time_sec:.4f}s'
+        f'{algorithm} | solved={result.solved} | moves={len(result.moves)}  | execution time={result.time_sec:.4f}s'
+    
     )
 
     ai_last_result = result
@@ -307,7 +307,7 @@ def start_ai_solver():
     ai_metrics_printed = False
 
     if not result.solved:
-        status_message = f'{algorithm}: sem solucao para este tabuleiro.'
+        status_message = f'{algorithm}: no solution found for this board.'
         print_ai_metrics(ai_last_algorithm, ai_last_result)
         ai_metrics_printed = True
         return
@@ -318,14 +318,14 @@ def start_ai_solver():
     select_rect = 100
 
     if not ai_moves:
-        status_message = f'{algorithm}: ja estava resolvido.'
+        status_message = f'{algorithm}: the board was already solved.'
         print_ai_metrics(ai_last_algorithm, ai_last_result)
         ai_metrics_printed = True
         return
 
     ai_animating = True
     ai_next_move_tick = pygame.time.get_ticks() + AI_STEP_DELAY_MS
-    status_message = f'{algorithm}: solucao encontrada ({len(ai_moves)} movimentos).'
+    status_message = f'{algorithm}: solution found ({len(ai_moves)} moves).'
 
 
 def update_ai_animation():
@@ -342,9 +342,9 @@ def update_ai_animation():
     if ai_move_index >= len(ai_moves):
         ai_animating = False
         if check_victory(tube_colors):
-            status_message = 'IA terminou: puzzle resolvido.'
+            status_message = 'AI finished: puzzle solved.'
         else:
-            status_message = 'IA terminou.'
+            status_message = 'AI finished.'
 
         if ai_last_result is not None and not ai_metrics_printed:
             print_ai_metrics(ai_last_algorithm, ai_last_result)
@@ -358,12 +358,12 @@ def update_ai_animation():
         next_state = logic_apply_move(current_state, (src, dst), TUBE_CAPACITY)
     except (ValueError, IndexError):
         ai_animating = False
-        status_message = f'IA interrompida: movimento invalido T{src} -> T{dst}.'
+        status_message = f'AI interrupted: invalid move T{src} -> T{dst}.'
         return
 
     tube_colors = [list(tube) for tube in next_state]
     ai_move_index += 1
-    status_message = f'IA move {ai_move_index}/{len(ai_moves)}: T{src} -> T{dst}'
+    status_message = f'AI move {ai_move_index}/{len(ai_moves)}: T{src} -> T{dst}'
     ai_next_move_tick = now + AI_STEP_DELAY_MS
 
 
@@ -439,34 +439,34 @@ def draw_menu(layout):
 
     pygame.draw.rect(screen, (25, 25, 25), panel, border_radius=14)
 
-    title = font.render('Escolher modo', True, 'white')
+    title = font.render('Choose Mode', True, 'white')
     screen.blit(title, title.get_rect(center=(panel.centerx, panel.y + 28)))
 
-    subtitle = small_font.render('Humano ou IA', True, (220, 220, 220))
+    subtitle = small_font.render('Human or AI', True, (220, 220, 220))
     screen.blit(subtitle, subtitle.get_rect(center=(panel.centerx, panel.y + 54)))
 
-    draw_button(mode_human_btn, 'Humano', selected=(game_mode == MODE_HUMAN))
-    draw_button(mode_ai_btn, 'IA', selected=(game_mode == MODE_AI))
+    draw_button(mode_human_btn, 'Human', selected=(game_mode == MODE_HUMAN))
+    draw_button(mode_ai_btn, 'AI', selected=(game_mode == MODE_AI))
     draw_button(reset_btn, 'Reset')
 
     if game_mode == MODE_AI:
-        algo_label = f'Algoritmo: {ALGORITHMS[selected_algorithm_idx]}'
+        algo_label = f'Algorithm: {ALGORITHMS[selected_algorithm_idx]}'
         draw_button(algorithm_btn, algo_label, selected=True, enabled=not ai_animating)
-        run_label = 'A correr IA...' if ai_animating else 'Correr IA'
+        run_label = 'Running AI...' if ai_animating else 'Run AI'
         draw_button(run_btn, run_label, enabled=not ai_animating)
 
-        tip = small_font.render('Clica no algoritmo para trocar.', True, (190, 190, 190))
+        tip = small_font.render('Click the algorithm to cycle.', True, (190, 190, 190))
         screen.blit(tip, (panel.x + 20, run_btn.y + 54))
     else:
-        hint = small_font.render('Seleciona IA para correr algoritmo.', True, (190, 190, 190))
+        hint = small_font.render('Select AI mode to run a solver.', True, (190, 190, 190))
         screen.blit(hint, (panel.x + 20, algorithm_btn.y + 12))
 
-    status_title = small_font.render('Estado:', True, (235, 235, 235))
+    status_title = small_font.render('Status:', True, (235, 235, 235))
     screen.blit(status_title, (panel.x + 20, panel.bottom - 130))
     draw_wrapped_text(status_message, panel.x + 20, panel.bottom - 108, panel.width - 40, small_font, (220, 220, 220), max_lines=3)
 
     if metrics_message:
-        metrics_title = small_font.render('Metricas:', True, (235, 235, 235))
+        metrics_title = small_font.render('Metrics:', True, (235, 235, 235))
         screen.blit(metrics_title, (panel.x + 20, panel.bottom - 64))
         draw_wrapped_text(metrics_message, panel.x + 20, panel.bottom - 42, panel.width - 40, small_font, (220, 220, 220), max_lines=2)
 
@@ -495,7 +495,7 @@ while run:
                 reset_to_initial()
             elif event.key == pygame.K_RETURN:
                 new_game = True
-                status_message = 'A gerar novo tabuleiro...'
+                status_message = 'Generating a new board...'
                 reset_ai(clear_metrics=True)
 
         if event.type == pygame.MOUSEBUTTONDOWN:
@@ -516,7 +516,7 @@ while run:
             if game_mode == MODE_AI:
                 if menu_layout['algorithm_btn'].collidepoint(pos) and not ai_animating:
                     selected_algorithm_idx = (selected_algorithm_idx + 1) % len(ALGORITHMS)
-                    status_message = f'Algoritmo selecionado: {ALGORITHMS[selected_algorithm_idx]}'
+                    status_message = f'Selected algorithm: {ALGORITHMS[selected_algorithm_idx]}'
                     continue
 
                 if menu_layout['run_btn'].collidepoint(pos) and not ai_animating:
