@@ -2,7 +2,7 @@ import copy
 import random
 import pygame
 from project import apply_move as logic_apply_move, is_goal, to_state, valid_moves
-from search import bfs, dfs, iddfs, ucs
+from search import bfs, dfs
 
 # initialize pygame
 pygame.init()
@@ -27,9 +27,8 @@ TUBE_CAPACITY = 4
 AI_STEP_DELAY_MS = 350
 MODE_HUMAN = 'HUMAN'
 MODE_AI = 'AI'
-ALGORITHMS = ['BFS', 'DFS', 'IDDFS', 'UCS']
+ALGORITHMS = ['BFS', 'DFS']
 DFS_DEPTH_LIMIT = 30
-IDDFS_MAX_DEPTH = 30
 DEFAULT_TUBES = 6
 
 
@@ -289,10 +288,6 @@ def start_ai_solver():
         result = bfs(current_state, TUBE_CAPACITY)
     elif algorithm == 'DFS':
         result = dfs(current_state, TUBE_CAPACITY, depth_limit=DFS_DEPTH_LIMIT)
-    elif algorithm == 'IDDFS':
-        result = iddfs(current_state, TUBE_CAPACITY, max_depth=IDDFS_MAX_DEPTH)
-    elif algorithm == 'UCS':
-        result = ucs(current_state, TUBE_CAPACITY)
     else:
         status_message = f'Algorithm {algorithm} is not implemented.'
         return
