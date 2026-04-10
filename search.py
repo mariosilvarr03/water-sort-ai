@@ -1,10 +1,13 @@
 """Search algorithms for Water Sort.
 
-Includes uninformed search methods used in the project:
+Includes uninformed and informed search methods used in the project:
 - BFS
 - DFS (depth-limited)
 - IDDFS
 - Uniform Cost Search (UCS)
+- Greedy Best-First Search
+- A*
+- Weighted A*
 """
 
 from __future__ import annotations
@@ -14,8 +17,11 @@ from dataclasses import dataclass
 from heapq import heappop, heappush
 from itertools import count
 from time import perf_counter
+from typing import Callable, Literal, TypeAlias
 
 from project import Move, State, apply_move, is_goal, valid_moves
+
+HeuristicFn: TypeAlias = Callable[[State, int], float]
 
 
 @dataclass(slots=True)
@@ -28,6 +34,52 @@ class SearchResult:
     max_visited: int
     time_sec: float
     final_state: State | None = None
+
+
+def h_color_boundaries(state: State, capacity: int) -> int:
+    """Lower bound based on color transitions inside tubes.
+
+    Each adjacent color change inside a tube creates one boundary.
+    A single move can remove at most one such boundary, so this is admissible.
+    """
+    del capacity  # Unused but kept for a consistent heuristic signature.
+
+    boundaries = 0
+    for tube in state:
+        for idx in range(1, len(tube)):
+            if tube[idx] != tube[idx - 1]:
+                boundaries += 1
+    return boundaries
+
+
+def h_split_colors(state: State, capacity: int) -> int:
+    """Lower bound based on color dispersion across tubes.
+
+    For each color appearing in k different tubes, at least (k - 1) merges
+    are needed to gather that color into one tube. Summing over colors gives
+    an admissible lower bound.
+    """
+    del capacity  # Unused but kept for a consistent heuristic signature.
+
+    color_to_tubes: dict[int | str, set[int]] = {}
+    for tube_idx, tube in enumerate(state):
+        for color in set(tube):
+            color_to_tubes.setdefault(color, set()).add(tube_idx)
+
+    return sum(len(tubes) - 1 for tubes in color_to_tubes.values())
+
+
+HEURISTICS: dict[str, HeuristicFn] = {
+    "h_color_boundaries": h_color_boundaries,
+    "h_split_colors": h_split_colors,
+}
+
+DEFAULT_HEURISTIC = "h_split_colors"
+
+
+def available_heuristics() -> tuple[str, ...]:
+    """Return the list of heuristic names available to informed searches."""
+    return tuple(HEURISTICS.keys())
 
 
 def bfs(initial_state: State, capacity: int) -> SearchResult:
@@ -276,6 +328,56 @@ def ucs(initial_state: State, capacity: int) -> SearchResult:
         final_state=None,
     )
 
+
+def greedy(
+    initial_state: State,
+    capacity: int,
+    heuristic: str | HeuristicFn = DEFAULT_HEURISTIC,
+) -> SearchResult:
+    """Run Greedy Best-First Search using f(n) = h(n)."""
+    return _best_first_search(
+        initial_state=initial_state,
+        capacity=capacity,
+        heuristic=heuristic,
+        mode="greedy",
+        weight=1.0,
+    )
+
+
+def astar(
+    initial_state: State,
+    capacity: int,
+    heuristic: str | HeuristicFn = DEFAULT_HEURISTIC,
+) -> SearchResult:
+    """Run A* using f(n) = g(n) + h(n)."""
+    return _best_first_search(
+        initial_state=initial_state,
+        capacity=capacity,
+        heuristic=heuristic,
+        mode="astar",
+        weight=1.0,
+    )
+
+
+def weighted_astar(
+    initial_state: State,
+    capacity: int,
+    heuristic: str | HeuristicFn = DEFAULT_HEURISTIC,
+    weight: float = 1.5,
+) -> SearchResult:
+    """Run Weighted A* using f(n) = g(n) + w*h(n), with w >= 1."""
+    if weight < 1.0:
+        raise ValueError("Weighted A* requires weight >= 1.0.")
+
+    return _best_first_search(
+        initial_state=initial_state,
+        capacity=capacity,
+        heuristic=heuristic,
+        mode="weighted_astar",
+        weight=weight,
+    )
+
+
 def _ordered_moves_for_dfs(state: State, capacity: int) -> list[Move]:
     """Return DFS moves ordered and pruned to reduce obvious useless actions."""
     raw_moves = valid_moves(state, capacity)
@@ -447,3 +549,102 @@ def _reconstruct_path(
     path.reverse()
     return path
 
+
+def _resolve_heuristic(heuristic: str | HeuristicFn) -> HeuristicFn:
+    if callable(heuristic):
+        return heuristic
+
+    fn = HEURISTICS.get(heuristic)
+    if fn is None:
+        names = ", ".join(available_heuristics())
+        raise ValueError(f"Unknown heuristic '{heuristic}'. Available: {names}")
+    return fn
+
+
+def _priority(mode: Literal["greedy", "astar", "weighted_astar"], g: int, h: float, weight: float) -> float:
+    if mode == "greedy":
+        return h
+    if mode == "astar":
+        return g + h
+    return g + weight * h
+
+
+def _best_first_search(
+    initial_state: State,
+    capacity: int,
+    heuristic: str | HeuristicFn,
+    mode: Literal["greedy", "astar", "weighted_astar"],
+    weight: float,
+) -> SearchResult:
+    """Shared engine for Greedy, A*, and Weighted A*."""
+    start_time = perf_counter()
+    heuristic_fn = _resolve_heuristic(heuristic)
+
+    if is_goal(initial_state, capacity):
+        return _solved_initial_result(start_time, initial_state)
+
+    tie = count()
+    frontier: list[tuple[float, int, int, State]] = []
+    parents: dict[State, tuple[State | None, Move | None]] = {initial_state: (None, None)}
+    best_g: dict[State, int] = {initial_state: 0}
+
+    initial_h = heuristic_fn(initial_state, capacity)
+    heappush(frontier, (_priority(mode, 0, initial_h, weight), next(tie), 0, initial_state))
+
+    expanded = 0
+    generated = 1
+    max_frontier = 1
+    max_visited = 1
+
+    while frontier:
+        _, _, queued_g, current = heappop(frontier)
+
+        current_g = best_g.get(current)
+        if current_g is None or queued_g != current_g:
+            continue
+
+        if is_goal(current, capacity):
+            elapsed = perf_counter() - start_time
+            return SearchResult(
+                solved=True,
+                moves=_reconstruct_path(parents, current),
+                expanded=expanded,
+                generated=generated,
+                max_frontier=max_frontier,
+                max_visited=max_visited,
+                time_sec=elapsed,
+                final_state=current,
+            )
+
+        expanded += 1
+
+        for move in valid_moves(current, capacity):
+            nxt = apply_move(current, move, capacity)
+            new_g = current_g + 1
+
+            if new_g >= best_g.get(nxt, 10**12):
+                continue
+
+            best_g[nxt] = new_g
+            parents[nxt] = (current, move)
+            h = heuristic_fn(nxt, capacity)
+            f = _priority(mode, new_g, h, weight)
+            heappush(frontier, (f, next(tie), new_g, nxt))
+            generated += 1
+
+        if len(frontier) > max_frontier:
+            max_frontier = len(frontier)
+        if len(best_g) > max_visited:
+            max_visited = len(best_g)
+
+    elapsed = perf_counter() - start_time
+    return SearchResult(
+        solved=False,
+        moves=[],
+        expanded=expanded,
+        generated=generated,
+        max_frontier=max_frontier,
+        max_visited=max_visited,
+        time_sec=elapsed,
+        final_state=None,
+    )

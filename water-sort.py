@@ -2,7 +2,17 @@ import copy
 import random
 import pygame
 from project import apply_move as logic_apply_move, is_goal, to_state, valid_moves
-from search import bfs, dfs, iddfs, ucs
+from search import (
+    DEFAULT_HEURISTIC,
+    astar,
+    available_heuristics,
+    bfs,
+    dfs,
+    greedy,
+    iddfs,
+    ucs,
+    weighted_astar,
+)
 
 # initialize pygame
 pygame.init()
@@ -27,10 +37,20 @@ TUBE_CAPACITY = 4
 AI_STEP_DELAY_MS = 350
 MODE_HUMAN = 'HUMAN'
 MODE_AI = 'AI'
-ALGORITHMS = ['BFS', 'DFS', 'IDDFS', 'UCS']
+ALGORITHMS = ['BFS', 'DFS', 'IDDFS', 'UCS', 'GREEDY', 'A*', 'W-A*']
 DFS_DEPTH_LIMIT = 30
 IDDFS_MAX_DEPTH = 30
 DEFAULT_TUBES = 6
+AI_HEURISTIC = DEFAULT_HEURISTIC
+WEIGHTED_ASTAR_WEIGHT = 1.5
+HEURISTIC_OPTIONS = list(available_heuristics())
+if not HEURISTIC_OPTIONS:
+    HEURISTIC_OPTIONS = [DEFAULT_HEURISTIC]
+if AI_HEURISTIC not in HEURISTIC_OPTIONS:
+    AI_HEURISTIC = HEURISTIC_OPTIONS[0]
+WEIGHT_OPTIONS = [1.2, 1.5, 2.0, 3.0]
+if WEIGHTED_ASTAR_WEIGHT not in WEIGHT_OPTIONS:
+    WEIGHT_OPTIONS.append(WEIGHTED_ASTAR_WEIGHT)
 
 
 tube_colors = []
@@ -55,6 +75,8 @@ ai_next_move_tick = 0
 ai_last_result = None
 ai_last_algorithm = ''
 ai_metrics_printed = False
+ai_last_heuristic = ''
+ai_last_weight = None
 
 
 # select a number of tubes and pick random colors upon new game setup
@@ -217,6 +239,7 @@ def check_victory(colors):
 def reset_ai(clear_metrics=False):
     global ai_moves, ai_animating, ai_move_index, ai_next_move_tick, metrics_message
     global ai_last_result, ai_last_algorithm, ai_metrics_printed
+    global ai_last_heuristic, ai_last_weight
 
     ai_moves = []
     ai_animating = False
@@ -225,15 +248,21 @@ def reset_ai(clear_metrics=False):
     ai_last_result = None
     ai_last_algorithm = ''
     ai_metrics_printed = False
+    ai_last_heuristic = ''
+    ai_last_weight = None
 
     if clear_metrics:
         metrics_message = ''
 
 
-def print_ai_metrics(algorithm, result):
+def print_ai_metrics(algorithm, result, heuristic_name='', weight=None):
     print()
     print('===== AI Metrics =====')
     print(f'Algorithm: {algorithm}')
+    if heuristic_name:
+        print(f'Heuristic: {heuristic_name}')
+    if weight is not None:
+        print(f'Weight: {weight:.2f}')
     print(f'Number of moves: {len(result.moves)}')
     print(f'Expanded states: {result.expanded}')
     print(f'Generated states: {result.generated}')
@@ -272,6 +301,7 @@ def start_ai_solver():
     global ai_moves, ai_animating, ai_move_index, ai_next_move_tick
     global status_message, metrics_message, selected, select_rect
     global ai_last_result, ai_last_algorithm, ai_metrics_printed
+    global ai_last_heuristic, ai_last_weight
 
     if game_mode != MODE_AI:
         status_message = 'Select AI mode first.'
@@ -285,6 +315,8 @@ def start_ai_solver():
         return
 
     algorithm = ALGORITHMS[selected_algorithm_idx]
+    selected_heuristic = ''
+    selected_weight = None
     if algorithm == 'BFS':
         result = bfs(current_state, TUBE_CAPACITY)
     elif algorithm == 'DFS':
@@ -293,22 +325,46 @@ def start_ai_solver():
         result = iddfs(current_state, TUBE_CAPACITY, max_depth=IDDFS_MAX_DEPTH)
     elif algorithm == 'UCS':
         result = ucs(current_state, TUBE_CAPACITY)
+    elif algorithm == 'GREEDY':
+        selected_heuristic = AI_HEURISTIC
+        result = greedy(current_state, TUBE_CAPACITY, heuristic=selected_heuristic)
+    elif algorithm == 'A*':
+        selected_heuristic = AI_HEURISTIC
+        result = astar(current_state, TUBE_CAPACITY, heuristic=selected_heuristic)
+    elif algorithm == 'W-A*':
+        selected_heuristic = AI_HEURISTIC
+        selected_weight = WEIGHTED_ASTAR_WEIGHT
+        result = weighted_astar(
+            current_state,
+            TUBE_CAPACITY,
+            heuristic=selected_heuristic,
+            weight=selected_weight,
+        )
     else:
         status_message = f'Algorithm {algorithm} is not implemented.'
         return
 
-    metrics_message = (
-        f'{algorithm} | solved={result.solved} | moves={len(result.moves)}  | execution time={result.time_sec:.4f}s'
-    
-    )
+    metric_parts = [
+        algorithm,
+        f'solved={result.solved}',
+        f'moves={len(result.moves)}',
+        f'execution time={result.time_sec:.4f}s',
+    ]
+    if selected_heuristic:
+        metric_parts.append(f'h={selected_heuristic}')
+    if selected_weight is not None:
+        metric_parts.append(f'w={selected_weight:.2f}')
+    metrics_message = ' | '.join(metric_parts)
 
     ai_last_result = result
     ai_last_algorithm = algorithm
+    ai_last_heuristic = selected_heuristic
+    ai_last_weight = selected_weight
     ai_metrics_printed = False
 
     if not result.solved:
         status_message = f'{algorithm}: no solution found for this board.'
-        print_ai_metrics(ai_last_algorithm, ai_last_result)
+        print_ai_metrics(ai_last_algorithm, ai_last_result, ai_last_heuristic, ai_last_weight)
         ai_metrics_printed = True
         return
 
@@ -319,7 +375,7 @@ def start_ai_solver():
 
     if not ai_moves:
         status_message = f'{algorithm}: the board was already solved.'
-        print_ai_metrics(ai_last_algorithm, ai_last_result)
+        print_ai_metrics(ai_last_algorithm, ai_last_result, ai_last_heuristic, ai_last_weight)
         ai_metrics_printed = True
         return
 
@@ -347,7 +403,7 @@ def update_ai_animation():
             status_message = 'AI finished.'
 
         if ai_last_result is not None and not ai_metrics_printed:
-            print_ai_metrics(ai_last_algorithm, ai_last_result)
+            print_ai_metrics(ai_last_algorithm, ai_last_result, ai_last_heuristic, ai_last_weight)
             ai_metrics_printed = True
         return
 
@@ -373,10 +429,12 @@ def build_menu_layout():
     panel = pygame.Rect(menu_x, 15, menu_w, HEIGHT - 30)
 
     mode_human_btn = pygame.Rect(menu_x + 20, 95, menu_w - 40, 40)
-    mode_ai_btn = pygame.Rect(menu_x + 20, 145, menu_w - 40, 40)
-    reset_btn = pygame.Rect(menu_x + 20, 195, menu_w - 40, 40)
-    algorithm_btn = pygame.Rect(menu_x + 20, 245, menu_w - 40, 40)
-    run_btn = pygame.Rect(menu_x + 20, 295, menu_w - 40, 44)
+    mode_ai_btn = pygame.Rect(menu_x + 20, 140, menu_w - 40, 40)
+    reset_btn = pygame.Rect(menu_x + 20, 185, menu_w - 40, 40)
+    algorithm_btn = pygame.Rect(menu_x + 20, 225, menu_w - 40, 40)
+    heuristic_btn = pygame.Rect(menu_x + 20, 265, menu_w - 40, 40)
+    weight_btn = pygame.Rect(menu_x + 20, 305, menu_w - 40, 40)
+    run_btn = pygame.Rect(menu_x + 20, 345, menu_w - 40, 44)
 
     return {
         'panel': panel,
@@ -384,6 +442,8 @@ def build_menu_layout():
         'mode_ai_btn': mode_ai_btn,
         'reset_btn': reset_btn,
         'algorithm_btn': algorithm_btn,
+        'heuristic_btn': heuristic_btn,
+        'weight_btn': weight_btn,
         'run_btn': run_btn,
     }
 
@@ -435,6 +495,8 @@ def draw_menu(layout):
     mode_ai_btn = layout['mode_ai_btn']
     reset_btn = layout['reset_btn']
     algorithm_btn = layout['algorithm_btn']
+    heuristic_btn = layout['heuristic_btn']
+    weight_btn = layout['weight_btn']
     run_btn = layout['run_btn']
 
     pygame.draw.rect(screen, (25, 25, 25), panel, border_radius=14)
@@ -450,13 +512,17 @@ def draw_menu(layout):
     draw_button(reset_btn, 'Reset')
 
     if game_mode == MODE_AI:
-        algo_label = f'Algorithm: {ALGORITHMS[selected_algorithm_idx]}'
+        selected_algo = ALGORITHMS[selected_algorithm_idx]
+        algo_label = f'Algorithm: {selected_algo}'
+        heuristic_label = f'Heuristic: {AI_HEURISTIC}'
+        weight_label = f'Weight: {WEIGHTED_ASTAR_WEIGHT:.2f}'
+
         draw_button(algorithm_btn, algo_label, selected=True, enabled=not ai_animating)
+        draw_button(heuristic_btn, heuristic_label, selected=(selected_algo in {'GREEDY', 'A*', 'W-A*'}), enabled=not ai_animating)
+        draw_button(weight_btn, weight_label, selected=(selected_algo == 'W-A*'), enabled=not ai_animating)
+
         run_label = 'Running AI...' if ai_animating else 'Run AI'
         draw_button(run_btn, run_label, enabled=not ai_animating)
-
-        tip = small_font.render('Click the algorithm to cycle.', True, (190, 190, 190))
-        screen.blit(tip, (panel.x + 20, run_btn.y + 54))
     else:
         hint = small_font.render('Select AI mode to run a solver.', True, (190, 190, 190))
         screen.blit(hint, (panel.x + 20, algorithm_btn.y + 12))
@@ -468,7 +534,7 @@ def draw_menu(layout):
     if metrics_message:
         metrics_title = small_font.render('Metrics:', True, (235, 235, 235))
         screen.blit(metrics_title, (panel.x + 20, panel.bottom - 64))
-        draw_wrapped_text(metrics_message, panel.x + 20, panel.bottom - 42, panel.width - 40, small_font, (220, 220, 220), max_lines=2)
+        draw_wrapped_text(metrics_message, panel.x + 20, panel.bottom - 42, panel.width - 40, small_font, (220, 220, 220), max_lines=3)
 
 
 # main game loop
@@ -516,7 +582,25 @@ while run:
             if game_mode == MODE_AI:
                 if menu_layout['algorithm_btn'].collidepoint(pos) and not ai_animating:
                     selected_algorithm_idx = (selected_algorithm_idx + 1) % len(ALGORITHMS)
-                    status_message = f'Selected algorithm: {ALGORITHMS[selected_algorithm_idx]}'
+                    selected_algorithm = ALGORITHMS[selected_algorithm_idx]
+                    if selected_algorithm in {'GREEDY', 'A*', 'W-A*'}:
+                        status_message = f'Selected algorithm: {selected_algorithm} | h={AI_HEURISTIC}'
+                        if selected_algorithm == 'W-A*':
+                            status_message += f' | w={WEIGHTED_ASTAR_WEIGHT:.2f}'
+                    else:
+                        status_message = f'Selected algorithm: {selected_algorithm}'
+                    continue
+
+                if menu_layout['heuristic_btn'].collidepoint(pos) and not ai_animating:
+                    h_idx = HEURISTIC_OPTIONS.index(AI_HEURISTIC) if AI_HEURISTIC in HEURISTIC_OPTIONS else -1
+                    AI_HEURISTIC = HEURISTIC_OPTIONS[(h_idx + 1) % len(HEURISTIC_OPTIONS)]
+                    status_message = f'Heuristic selected: {AI_HEURISTIC}'
+                    continue
+
+                if menu_layout['weight_btn'].collidepoint(pos) and not ai_animating:
+                    w_idx = WEIGHT_OPTIONS.index(WEIGHTED_ASTAR_WEIGHT) if WEIGHTED_ASTAR_WEIGHT in WEIGHT_OPTIONS else -1
+                    WEIGHTED_ASTAR_WEIGHT = WEIGHT_OPTIONS[(w_idx + 1) % len(WEIGHT_OPTIONS)]
+                    status_message = f'Weight selected: {WEIGHTED_ASTAR_WEIGHT:.2f} (used by W-A*)'
                     continue
 
                 if menu_layout['run_btn'].collidepoint(pos) and not ai_animating:
