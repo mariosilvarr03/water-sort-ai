@@ -10,7 +10,6 @@ from search import (
     dfs,
     greedy,
     iddfs,
-    ucs,
     weighted_astar,
 )
 
@@ -37,10 +36,18 @@ TUBE_CAPACITY = 4
 AI_STEP_DELAY_MS = 350
 MODE_HUMAN = 'HUMAN'
 MODE_AI = 'AI'
-ALGORITHMS = ['BFS', 'DFS', 'IDDFS', 'UCS', 'GREEDY', 'A*', 'W-A*']
+ALGORITHMS = ['BFS', 'DFS', 'IDDFS', 'GREEDY', 'A*', 'W-A*']
 DFS_DEPTH_LIMIT = 30
 IDDFS_MAX_DEPTH = 30
+
+# Difficulty levels: (level_name, tube_count)
+DIFFICULTY_LEVELS = [
+    ('Level 1 (6 tubes)', 6),
+    ('Level 2 (8 tubes)', 8),
+    ('Level 3 (12 tubes)', 12),
+]
 DEFAULT_TUBES = 6
+selected_difficulty_idx = 0  # Start with Level 1
 AI_HEURISTIC = DEFAULT_HEURISTIC
 WEIGHTED_ASTAR_WEIGHT = 1.5
 HEURISTIC_OPTIONS = list(available_heuristics())
@@ -78,10 +85,17 @@ ai_metrics_printed = False
 ai_last_heuristic = ''
 ai_last_weight = None
 
+# Human mode helpers
+move_history = []  # List of (source, dest, state_before) tuples for reverting moves
+hint_message = ''  # Displays the next AI-suggested move
+
 
 # select a number of tubes and pick random colors upon new game setup
-def generate_start():
-    tubes_number = DEFAULT_TUBES
+def generate_start(num_tubes=None):
+    if num_tubes is None:
+        num_tubes = DIFFICULTY_LEVELS[selected_difficulty_idx][1]
+    
+    tubes_number = num_tubes
     tubes_colors = []
     available_colors = []
     for i in range(tubes_number):
@@ -220,6 +234,8 @@ def draw_tubes(tubes_num, tube_cols):
 
 # apply one move using the shared logic module
 def calc_move(colors, selected_rect_idx, destination):
+    global move_history
+    
     state = to_state(colors)
     move = (selected_rect_idx, destination)
 
@@ -227,6 +243,9 @@ def calc_move(colors, selected_rect_idx, destination):
     if move not in valid_moves(state, capacity=TUBE_CAPACITY):
         return colors
 
+    # Record move in history before applying
+    move_history.append((selected_rect_idx, destination, copy.deepcopy(colors)))
+    
     next_state = logic_apply_move(state, move, capacity=TUBE_CAPACITY)
     return [list(tube) for tube in next_state]
 
@@ -237,6 +256,60 @@ def check_victory(colors):
 
 
 def reset_ai(clear_metrics=False):
+    global ai_moves, ai_animating, ai_move_index, ai_next_move_tick, metrics_message
+    global ai_last_result, ai_last_algorithm, ai_metrics_printed
+    global ai_last_heuristic, ai_last_weight
+
+    ai_moves = []
+    ai_animating = False
+    ai_move_index = 0
+    ai_next_move_tick = 0
+    ai_last_result = None
+    ai_last_algorithm = ''
+    ai_metrics_printed = False
+
+
+def go_back_one_step():
+    """Revert the last move made by the player."""
+    global tube_colors, move_history, hint_message, status_message
+    
+    if not move_history:
+        status_message = 'No moves to undo.'
+        return
+    
+    source, dest, state_before = move_history.pop()
+    tube_colors = state_before
+    hint_message = ''
+    status_message = f'Reverted move: T{source} -> T{dest}'
+
+
+def get_hint():
+    """Get the next move suggested by BFS (optimal solution)."""
+    global status_message, hint_message, tube_colors
+    
+    current_state = to_state(tube_colors)
+    
+    if is_goal(current_state, TUBE_CAPACITY):
+        hint_message = 'The puzzle is already solved!'
+        status_message = 'Hint: Already solved.'
+        return
+    
+    # Use BFS to find optimal next move
+    result = bfs(current_state, TUBE_CAPACITY)
+    
+    if not result.solved or not result.moves:
+        hint_message = 'No solution found.'
+        status_message = 'Hint: No solution found.'
+        return
+    
+    # Get the first move from the solution
+    src, dst = result.moves[0]
+    hint_message = f'Hint: Tube {src+1} to Tube {dst+1}'
+    status_message = f'Hint: T{src} -> T{dst} (from {len(result.moves)}-move solution)'
+
+
+def reset_ai(clear_metrics=False):
+    """Reset AI animation state and optionally clear metrics."""
     global ai_moves, ai_animating, ai_move_index, ai_next_move_tick, metrics_message
     global ai_last_result, ai_last_algorithm, ai_metrics_printed
     global ai_last_heuristic, ai_last_weight
@@ -271,11 +344,13 @@ def print_ai_metrics(algorithm, result, heuristic_name='', weight=None):
 
 
 def set_mode(mode):
-    global mode_selected, game_mode, selected, select_rect, status_message
+    global mode_selected, game_mode, selected, select_rect, status_message, move_history, hint_message
     mode_selected = True
     game_mode = mode
     selected = False
     select_rect = 100
+    move_history = []
+    hint_message = ''
     reset_ai(clear_metrics=False)
 
     if mode == MODE_HUMAN:
@@ -323,8 +398,6 @@ def start_ai_solver():
         result = dfs(current_state, TUBE_CAPACITY, depth_limit=DFS_DEPTH_LIMIT)
     elif algorithm == 'IDDFS':
         result = iddfs(current_state, TUBE_CAPACITY, max_depth=IDDFS_MAX_DEPTH)
-    elif algorithm == 'UCS':
-        result = ucs(current_state, TUBE_CAPACITY)
     elif algorithm == 'GREEDY':
         selected_heuristic = AI_HEURISTIC
         result = greedy(current_state, TUBE_CAPACITY, heuristic=selected_heuristic)
@@ -430,17 +503,27 @@ def build_menu_layout():
 
     mode_human_btn = pygame.Rect(menu_x + 20, 95, menu_w - 40, 40)
     mode_ai_btn = pygame.Rect(menu_x + 20, 140, menu_w - 40, 40)
-    reset_btn = pygame.Rect(menu_x + 20, 185, menu_w - 40, 40)
-    algorithm_btn = pygame.Rect(menu_x + 20, 225, menu_w - 40, 40)
-    heuristic_btn = pygame.Rect(menu_x + 20, 265, menu_w - 40, 40)
-    weight_btn = pygame.Rect(menu_x + 20, 305, menu_w - 40, 40)
-    run_btn = pygame.Rect(menu_x + 20, 345, menu_w - 40, 44)
+    difficulty_btn = pygame.Rect(menu_x + 20, 185, menu_w - 40, 40)
+    reset_btn = pygame.Rect(menu_x + 20, 230, menu_w - 40, 40)
+    
+    # Human mode buttons
+    hint_btn = pygame.Rect(menu_x + 20, 275, (menu_w - 50) // 2, 40)
+    go_back_btn = pygame.Rect(menu_x + 20 + (menu_w - 50) // 2 + 10, 275, (menu_w - 50) // 2, 40)
+    
+    # AI mode buttons
+    algorithm_btn = pygame.Rect(menu_x + 20, 275, menu_w - 40, 40)
+    heuristic_btn = pygame.Rect(menu_x + 20, 315, menu_w - 40, 40)
+    weight_btn = pygame.Rect(menu_x + 20, 355, menu_w - 40, 40)
+    run_btn = pygame.Rect(menu_x + 20, 395, menu_w - 40, 44)
 
     return {
         'panel': panel,
         'mode_human_btn': mode_human_btn,
         'mode_ai_btn': mode_ai_btn,
         'reset_btn': reset_btn,
+        'difficulty_btn': difficulty_btn,
+        'hint_btn': hint_btn,
+        'go_back_btn': go_back_btn,
         'algorithm_btn': algorithm_btn,
         'heuristic_btn': heuristic_btn,
         'weight_btn': weight_btn,
@@ -494,6 +577,9 @@ def draw_menu(layout):
     mode_human_btn = layout['mode_human_btn']
     mode_ai_btn = layout['mode_ai_btn']
     reset_btn = layout['reset_btn']
+    difficulty_btn = layout['difficulty_btn']
+    hint_btn = layout['hint_btn']
+    go_back_btn = layout['go_back_btn']
     algorithm_btn = layout['algorithm_btn']
     heuristic_btn = layout['heuristic_btn']
     weight_btn = layout['weight_btn']
@@ -509,9 +595,23 @@ def draw_menu(layout):
 
     draw_button(mode_human_btn, 'Human', selected=(game_mode == MODE_HUMAN))
     draw_button(mode_ai_btn, 'AI', selected=(game_mode == MODE_AI))
+    
+    # Difficulty button always visible
+    difficulty_label = DIFFICULTY_LEVELS[selected_difficulty_idx][0]
+    draw_button(difficulty_btn, difficulty_label, selected=True)
+    
     draw_button(reset_btn, 'Reset')
 
-    if game_mode == MODE_AI:
+    if game_mode == MODE_HUMAN:
+        # Human mode: show Hint and Go Back buttons
+        draw_button(hint_btn, 'Hint', enabled=True)
+        draw_button(go_back_btn, 'Undo', enabled=True)
+        
+        # Show hint message if available
+        if hint_message:
+            hint_display = small_font.render(hint_message, True, (100, 200, 100))
+            screen.blit(hint_display, (panel.x + 20, go_back_btn.bottom + 10))
+    elif game_mode == MODE_AI:
         selected_algo = ALGORITHMS[selected_algorithm_idx]
         algo_label = f'Algorithm: {selected_algo}'
         heuristic_label = f'Heuristic: {AI_HEURISTIC}'
@@ -523,9 +623,6 @@ def draw_menu(layout):
 
         run_label = 'Running AI...' if ai_animating else 'Run AI'
         draw_button(run_btn, run_label, enabled=not ai_animating)
-    else:
-        hint = small_font.render('Select AI mode to run a solver.', True, (190, 190, 190))
-        screen.blit(hint, (panel.x + 20, algorithm_btn.y + 12))
 
     status_title = small_font.render('Status:', True, (235, 235, 235))
     screen.blit(status_title, (panel.x + 20, panel.bottom - 130))
@@ -534,7 +631,7 @@ def draw_menu(layout):
     if metrics_message:
         metrics_title = small_font.render('Metrics:', True, (235, 235, 235))
         screen.blit(metrics_title, (panel.x + 20, panel.bottom - 64))
-        draw_wrapped_text(metrics_message, panel.x + 20, panel.bottom - 42, panel.width - 40, small_font, (220, 220, 220), max_lines=3)
+        draw_wrapped_text(metrics_message, panel.x + 20, panel.bottom - 42, panel.width - 40, small_font, (220, 220, 220), max_lines=2)
 
 
 # main game loop
@@ -543,7 +640,7 @@ while run:
     timer.tick(fps)
 
     if new_game:
-        tubes, tube_colors = generate_start()
+        tubes, tube_colors = generate_start(DIFFICULTY_LEVELS[selected_difficulty_idx][1])
         initial_colors = copy.deepcopy(tube_colors)
         new_game = False
         selected = False
@@ -578,6 +675,23 @@ while run:
             if menu_layout['reset_btn'].collidepoint(pos):
                 reset_to_initial()
                 continue
+
+            # Difficulty button to change level (works in both modes)
+            if menu_layout['difficulty_btn'].collidepoint(pos):
+                selected_difficulty_idx = (selected_difficulty_idx + 1) % len(DIFFICULTY_LEVELS)
+                new_game = True
+                status_message = f'Difficulty changed to {DIFFICULTY_LEVELS[selected_difficulty_idx][0]}'
+                continue
+
+            if game_mode == MODE_HUMAN:
+                # Human mode: Hint and Go Back buttons
+                if menu_layout['hint_btn'].collidepoint(pos):
+                    get_hint()
+                    continue
+                
+                if menu_layout['go_back_btn'].collidepoint(pos):
+                    go_back_one_step()
+                    continue
 
             if game_mode == MODE_AI:
                 if menu_layout['algorithm_btn'].collidepoint(pos) and not ai_animating:
