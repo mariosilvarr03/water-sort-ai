@@ -1,15 +1,13 @@
-"""Core Water Sort logic, independent from any UI framework.
+# Water Sort logic, independent from the UI.
 
-State representation:
-- A state is a tuple of tubes.
-- Each tube is a tuple ordered from bottom to top.
-- Example: ((0, 1, 1), (2,), (), ())
-"""
+# State representation:
+# - A state is a tuple of tubes.
+# - Each tube is a tuple ordered from bottom to top.
+# - Example: ((0, 1, 1), (2,), (), ())
+
 
 from __future__ import annotations
-
 from typing import Iterable, Sequence, TypeAlias
-
 Color: TypeAlias = int | str
 Tube: TypeAlias = tuple[Color, ...]
 State: TypeAlias = tuple[Tube, ...]
@@ -17,12 +15,12 @@ Move: TypeAlias = tuple[int, int]
 
 
 def to_state(raw_state: Iterable[Iterable[Color]]) -> State:
-    """Convert nested iterables to the immutable State format."""
+    # Convert nested iterables to the immutable State format.
     return tuple(tuple(tube) for tube in raw_state)
 
 
 def is_goal(state: State, capacity: int) -> bool:
-    """Return True when every non-empty tube is full and monochromatic."""
+    # Returns True when every non-empty tube is full and has the same color
     _validate_capacity(capacity)
     _validate_state(state, capacity)
 
@@ -37,7 +35,7 @@ def is_goal(state: State, capacity: int) -> bool:
 
 
 def valid_moves(state: State, capacity: int) -> list[Move]:
-    """Return all legal moves as (source_index, destination_index)."""
+    # Return all allowed moves as (source_index, destination_index).
     _validate_capacity(capacity)
     _validate_state(state, capacity)
 
@@ -52,13 +50,13 @@ def valid_moves(state: State, capacity: int) -> list[Move]:
 
 
 def apply_move(state: State, move: Move, capacity: int) -> State:
-    """Apply one legal move and return a new state.
+    # Apply one allowed move and return the new state.
 
-    The pour follows Water Sort behavior:
-    - You can only pour from non-empty source to non-full destination.
-    - Destination must be empty or have the same top color.
-    - Pour as many top blocks of the same color as possible until destination is full.
-    """
+    # NOTE: An allowed move requires certain conditions to be met:
+    # - You can only pour from non-empty source to non-full destination.
+    # - Destination must be empty or have the same top color.
+    # - Pour as many top blocks of the same color as possible until destination is full.
+    
     _validate_capacity(capacity)
     _validate_state(state, capacity)
 
@@ -97,7 +95,7 @@ def _can_pour(src_tube: Tube, dst_tube: Tube, capacity: int) -> bool:
 
 
 def _top_run_length(tube: Sequence[Color]) -> int:
-    """Count consecutive equal colors from the top of a tube."""
+    # Counts how many consecutive colors are on top of a tube
     if not tube:
         return 0
     top = tube[-1]

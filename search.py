@@ -1,12 +1,10 @@
-"""Search algorithms for Water Sort.
+# Search algorithms for Water Sort.
 
-Includes uninformed search methods used in the project:
-- BFS
-- DFS (depth-limited)
-"""
+# Search methods used in the project:
+# - BFS
+# - DFS (depth-limited)
 
 from __future__ import annotations
-
 from collections import deque
 from dataclasses import dataclass
 from time import perf_counter
@@ -27,7 +25,7 @@ class SearchResult:
 
 
 def bfs(initial_state: State, capacity: int) -> SearchResult:
-    """Run breadth-first search from an initial Water Sort state."""
+    # Run BFS search from an initial Water Sort state.
     start_time = perf_counter()
 
     if is_goal(initial_state, capacity):
@@ -86,7 +84,7 @@ def bfs(initial_state: State, capacity: int) -> SearchResult:
 
 
 def dfs(initial_state: State, capacity: int, depth_limit: int = 30) -> SearchResult:
-    """Run depth-first search with a depth limit."""
+    # Runs a DFS (with a search limit)
     start_time = perf_counter()
 
     if is_goal(initial_state, capacity):
@@ -142,7 +140,7 @@ def dfs(initial_state: State, capacity: int, depth_limit: int = 30) -> SearchRes
         if len(seen_depth) > max_visited:
             max_visited = len(seen_depth)
 
-    elapsed = perf_counter() - start_time
+    time_passed = perf_counter() - start_time
     return SearchResult(
         solved=False,
         moves=[],
@@ -150,7 +148,7 @@ def dfs(initial_state: State, capacity: int, depth_limit: int = 30) -> SearchRes
         generated=generated,
         max_frontier=max_frontier,
         max_visited=max_visited,
-        time_sec=elapsed,
+        time_sec=time_passed,
         final_state=None,
     )
 
@@ -158,16 +156,16 @@ def dfs(initial_state: State, capacity: int, depth_limit: int = 30) -> SearchRes
 
 
 def _ordered_moves_for_dfs(state: State, capacity: int) -> list[Move]:
-    """Return DFS moves ordered and pruned to reduce obvious useless actions."""
-    raw_moves = valid_moves(state, capacity)
-    if not raw_moves:
+    # Return DFS moves ordered
+    movesList = valid_moves(state, capacity)
+    if not movesList:
         return []
 
     empty_indices = [idx for idx, tube in enumerate(state) if not tube]
     canonical_empty = empty_indices[0] if empty_indices else None
 
     ranked: list[tuple[int, Move]] = []
-    for move in raw_moves:
+    for move in movesList:
         if _is_useless_move_for_dfs(state, move, capacity, canonical_empty):
             continue
 
@@ -189,7 +187,7 @@ def _ordered_moves_for_dfs(state: State, capacity: int) -> list[Move]:
 
     if not ranked:
         # Fallback to keep completeness if all moves were pruned.
-        return raw_moves
+        return movesList
 
     ranked.sort(key=lambda item: (item[0], item[1][0], item[1][1]))
     return [move for _, move in ranked]
@@ -214,7 +212,6 @@ def _is_useless_move_for_dfs(
         if canonical_empty is not None and dst != canonical_empty:
             return True
 
-        # Moving a fully uniform tube into an empty tube is usually a pure relocation.
         if _is_uniform_tube(src_tube):
             return True
 
@@ -223,9 +220,6 @@ def _is_useless_move_for_dfs(
 
 def _is_uniform_tube(tube: tuple) -> bool:
     return bool(tube) and len(set(tube)) == 1
-
-
-
 
 
 def _solved_initial_result(start_time: float, initial_state: State) -> SearchResult:
@@ -246,7 +240,7 @@ def _reconstruct_path(
     parents: dict[State, tuple[State | None, Move | None]],
     goal_state: State,
 ) -> list[Move]:
-    """Rebuild the move sequence from start to goal using parent links."""
+    # Rebuild the move sequence from start to goal using parent links.
     path: list[Move] = []
     current = goal_state
 
