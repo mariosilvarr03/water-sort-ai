@@ -625,14 +625,8 @@ def draw_menu(layout):
         draw_button(run_btn, run_label, enabled=not ai_animating)
 
     status_title = small_font.render('Status:', True, (235, 235, 235))
-    screen.blit(status_title, (panel.x + 20, panel.bottom - 130))
-    draw_wrapped_text(status_message, panel.x + 20, panel.bottom - 108, panel.width - 40, small_font, (220, 220, 220), max_lines=3)
-
-    if metrics_message:
-        metrics_title = small_font.render('Metrics:', True, (235, 235, 235))
-        screen.blit(metrics_title, (panel.x + 20, panel.bottom - 64))
-        draw_wrapped_text(metrics_message, panel.x + 20, panel.bottom - 42, panel.width - 40, small_font, (220, 220, 220), max_lines=2)
-
+    screen.blit(status_title, (panel.x + 20, panel.bottom - 90))
+    draw_wrapped_text(status_message, panel.x + 20, panel.bottom - 68, panel.width - 40, small_font, (220, 220, 220), max_lines=3)
 
 # main game loop
 run = True
