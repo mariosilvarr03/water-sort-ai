@@ -4,7 +4,6 @@ Includes uninformed and informed search methods used in the project:
 - BFS
 - DFS (depth-limited)
 - IDDFS
-- Uniform Cost Search (UCS)
 - Greedy Best-First Search
 - A*
 - Weighted A*
@@ -12,6 +11,7 @@ Includes uninformed and informed search methods used in the project:
 
 from __future__ import annotations
 
+import tracemalloc
 from collections import deque
 from dataclasses import dataclass
 from heapq import heappop, heappush
@@ -34,6 +34,27 @@ class SearchResult:
     max_visited: int
     time_sec: float
     final_state: State | None = None
+    timed_out: bool = False
+    peak_memory_kb: float = 0.0
+
+
+
+def _track_memory(fn):
+    """Decorator: measures peak heap memory during a search call."""
+    from functools import wraps
+
+    @wraps(fn)
+    def wrapper(*args, **kwargs):
+        tracemalloc.start()
+        try:
+            result = fn(*args, **kwargs)
+        finally:
+            _, peak = tracemalloc.get_traced_memory()
+            tracemalloc.stop()
+        result.peak_memory_kb = peak / 1024
+        return result
+
+    return wrapper
 
 
 def h_color_boundaries(state: State, capacity: int) -> int:
@@ -82,7 +103,14 @@ def available_heuristics() -> tuple[str, ...]:
     return tuple(HEURISTICS.keys())
 
 
-def bfs(initial_state: State, capacity: int) -> SearchResult:
+def _time_limit_reached(start_time: float, time_limit_sec: float | None) -> bool:
+    if time_limit_sec is None:
+        return False
+    return (perf_counter() - start_time) >= time_limit_sec
+
+
+@_track_memory
+def bfs(initial_state: State, capacity: int, time_limit_sec: float | None = None) -> SearchResult:
     """Run breadth-first search from an initial Water Sort state."""
     start_time = perf_counter()
 
@@ -98,6 +126,20 @@ def bfs(initial_state: State, capacity: int) -> SearchResult:
     max_visited = 1
 
     while frontier:
+        if _time_limit_reached(start_time, time_limit_sec):
+            elapsed = perf_counter() - start_time
+            return SearchResult(
+                solved=False,
+                moves=[],
+                expanded=expanded,
+                generated=generated,
+                max_frontier=max_frontier,
+                max_visited=max_visited,
+                time_sec=elapsed,
+                final_state=None,
+                timed_out=True,
+            )
+
         current = frontier.popleft()
         expanded += 1
 
@@ -141,7 +183,8 @@ def bfs(initial_state: State, capacity: int) -> SearchResult:
     )
 
 
-def dfs(initial_state: State, capacity: int, depth_limit: int = 30) -> SearchResult:
+@_track_memory
+def dfs(initial_state: State, capacity: int, depth_limit: int = 30, time_limit_sec: float | None = None) -> SearchResult:
     """Run depth-first search with a depth limit."""
     start_time = perf_counter()
 
@@ -158,6 +201,20 @@ def dfs(initial_state: State, capacity: int, depth_limit: int = 30) -> SearchRes
     max_visited = 1
 
     while stack:
+        if _time_limit_reached(start_time, time_limit_sec):
+            elapsed = perf_counter() - start_time
+            return SearchResult(
+                solved=False,
+                moves=[],
+                expanded=expanded,
+                generated=generated,
+                max_frontier=max_frontier,
+                max_visited=max_visited,
+                time_sec=elapsed,
+                final_state=None,
+                timed_out=True,
+            )
+
         current, depth = stack.pop()
 
         if is_goal(current, capacity):
@@ -211,7 +268,8 @@ def dfs(initial_state: State, capacity: int, depth_limit: int = 30) -> SearchRes
     )
 
 
-def iddfs(initial_state: State, capacity: int, max_depth: int = 30) -> SearchResult:
+@_track_memory
+def iddfs(initial_state: State, capacity: int, max_depth: int = 30, time_limit_sec: float | None = None) -> SearchResult:
     """Run iterative deepening DFS up to max_depth."""
     start_time = perf_counter()
 
@@ -224,10 +282,26 @@ def iddfs(initial_state: State, capacity: int, max_depth: int = 30) -> SearchRes
     max_visited_overall = 1
 
     for depth_limit in range(max_depth + 1):
-        found, moves, final_state, expanded_i, generated_i, max_frontier_i, max_visited_i = _depth_limited_search(
+        if _time_limit_reached(start_time, time_limit_sec):
+            elapsed = perf_counter() - start_time
+            return SearchResult(
+                solved=False,
+                moves=[],
+                expanded=expanded_total,
+                generated=generated_total,
+                max_frontier=max_frontier_overall,
+                max_visited=max_visited_overall,
+                time_sec=elapsed,
+                final_state=None,
+                timed_out=True,
+            )
+
+        found, moves, final_state, expanded_i, generated_i, max_frontier_i, max_visited_i, timed_out_i = _depth_limited_search(
             initial_state,
             capacity,
             depth_limit,
+            start_time,
+            time_limit_sec,
         )
 
         expanded_total += expanded_i
@@ -248,6 +322,20 @@ def iddfs(initial_state: State, capacity: int, max_depth: int = 30) -> SearchRes
                 final_state=final_state,
             )
 
+        if timed_out_i:
+            elapsed = perf_counter() - start_time
+            return SearchResult(
+                solved=False,
+                moves=[],
+                expanded=expanded_total,
+                generated=generated_total,
+                max_frontier=max_frontier_overall,
+                max_visited=max_visited_overall,
+                time_sec=elapsed,
+                final_state=None,
+                timed_out=True,
+            )
+
     elapsed = perf_counter() - start_time
     return SearchResult(
         solved=False,
@@ -261,78 +349,12 @@ def iddfs(initial_state: State, capacity: int, max_depth: int = 30) -> SearchRes
     )
 
 
-def ucs(initial_state: State, capacity: int) -> SearchResult:
-    """Run Uniform Cost Search (unit-cost moves in Water Sort)."""
-    start_time = perf_counter()
-
-    if is_goal(initial_state, capacity):
-        return _solved_initial_result(start_time, initial_state)
-
-    tie = count()
-    frontier: list[tuple[int, int, State]] = []
-    heappush(frontier, (0, next(tie), initial_state))
-
-    best_cost: dict[State, int] = {initial_state: 0}
-    parents: dict[State, tuple[State | None, Move | None]] = {initial_state: (None, None)}
-
-    expanded = 0
-    generated = 1
-    max_frontier = 1
-    max_visited = 1
-
-    while frontier:
-        cost, _, current = heappop(frontier)
-
-        if cost != best_cost.get(current):
-            continue
-
-        if is_goal(current, capacity):
-            elapsed = perf_counter() - start_time
-            return SearchResult(
-                solved=True,
-                moves=_reconstruct_path(parents, current),
-                expanded=expanded,
-                generated=generated,
-                max_frontier=max_frontier,
-                max_visited=max_visited,
-                time_sec=elapsed,
-                final_state=current,
-            )
-
-        expanded += 1
-
-        for move in valid_moves(current, capacity):
-            nxt = apply_move(current, move, capacity)
-            new_cost = cost + 1
-
-            if new_cost < best_cost.get(nxt, 10**12):
-                best_cost[nxt] = new_cost
-                parents[nxt] = (current, move)
-                heappush(frontier, (new_cost, next(tie), nxt))
-                generated += 1
-
-        if len(frontier) > max_frontier:
-            max_frontier = len(frontier)
-        if len(best_cost) > max_visited:
-            max_visited = len(best_cost)
-
-    elapsed = perf_counter() - start_time
-    return SearchResult(
-        solved=False,
-        moves=[],
-        expanded=expanded,
-        generated=generated,
-        max_frontier=max_frontier,
-        max_visited=max_visited,
-        time_sec=elapsed,
-        final_state=None,
-    )
-
-
+@_track_memory
 def greedy(
     initial_state: State,
     capacity: int,
     heuristic: str | HeuristicFn = DEFAULT_HEURISTIC,
+    time_limit_sec: float | None = None,
 ) -> SearchResult:
     """Run Greedy Best-First Search using f(n) = h(n)."""
     return _best_first_search(
@@ -341,13 +363,16 @@ def greedy(
         heuristic=heuristic,
         mode="greedy",
         weight=1.0,
+        time_limit_sec=time_limit_sec,
     )
 
 
+@_track_memory
 def astar(
     initial_state: State,
     capacity: int,
     heuristic: str | HeuristicFn = DEFAULT_HEURISTIC,
+    time_limit_sec: float | None = None,
 ) -> SearchResult:
     """Run A* using f(n) = g(n) + h(n)."""
     return _best_first_search(
@@ -356,14 +381,17 @@ def astar(
         heuristic=heuristic,
         mode="astar",
         weight=1.0,
+        time_limit_sec=time_limit_sec,
     )
 
 
+@_track_memory
 def weighted_astar(
     initial_state: State,
     capacity: int,
     heuristic: str | HeuristicFn = DEFAULT_HEURISTIC,
     weight: float = 1.5,
+    time_limit_sec: float | None = None,
 ) -> SearchResult:
     """Run Weighted A* using f(n) = g(n) + w*h(n), with w >= 1."""
     if weight < 1.0:
@@ -375,6 +403,7 @@ def weighted_astar(
         heuristic=heuristic,
         mode="weighted_astar",
         weight=weight,
+        time_limit_sec=time_limit_sec,
     )
 
 
@@ -450,7 +479,9 @@ def _depth_limited_search(
     initial_state: State,
     capacity: int,
     depth_limit: int,
-) -> tuple[bool, list[Move], State | None, int, int, int, int]:
+    start_time: float,
+    time_limit_sec: float | None,
+) -> tuple[bool, list[Move], State | None, int, int, int, int, bool]:
     """Single DLS pass used by IDDFS."""
     path_states: set[State] = {initial_state}
     path_moves: list[Move] = []
@@ -463,9 +494,14 @@ def _depth_limited_search(
 
     final_moves: list[Move] | None = None
     final_state: State | None = None
+    timed_out = False
 
     def dls(state: State, depth: int) -> bool:
-        nonlocal expanded, generated, max_frontier, final_moves, final_state
+        nonlocal expanded, generated, max_frontier, final_moves, final_state, timed_out
+
+        if _time_limit_reached(start_time, time_limit_sec):
+            timed_out = True
+            return False
 
         if is_goal(state, capacity):
             final_moves = list(path_moves)
@@ -514,6 +550,7 @@ def _depth_limited_search(
         generated,
         max_frontier,
         len(seen_iter),
+        timed_out,
     )
 
 
@@ -575,6 +612,7 @@ def _best_first_search(
     heuristic: str | HeuristicFn,
     mode: Literal["greedy", "astar", "weighted_astar"],
     weight: float,
+    time_limit_sec: float | None = None,
 ) -> SearchResult:
     """Shared engine for Greedy, A*, and Weighted A*."""
     start_time = perf_counter()
@@ -597,6 +635,20 @@ def _best_first_search(
     max_visited = 1
 
     while frontier:
+        if _time_limit_reached(start_time, time_limit_sec):
+            elapsed = perf_counter() - start_time
+            return SearchResult(
+                solved=False,
+                moves=[],
+                expanded=expanded,
+                generated=generated,
+                max_frontier=max_frontier,
+                max_visited=max_visited,
+                time_sec=elapsed,
+                final_state=None,
+                timed_out=True,
+            )
+
         _, _, queued_g, current = heappop(frontier)
 
         current_g = best_g.get(current)
@@ -648,3 +700,39 @@ def _best_first_search(
         time_sec=elapsed,
         final_state=None,
     )
+
+
+def run_benchmark(
+    initial_state: "State",
+    capacity: int,
+    heuristic: str = DEFAULT_HEURISTIC,
+    weight: float = 1.5,
+    time_limit_sec: float = 60.0,
+) -> None:
+    """Run all algorithms on the same state and print a comparison table."""
+    entries = [
+        ("BFS", lambda s, c: bfs(s, c, time_limit_sec=time_limit_sec)),
+        ("DFS", lambda s, c: dfs(s, c, time_limit_sec=time_limit_sec)),
+        ("IDDFS", lambda s, c: iddfs(s, c, time_limit_sec=time_limit_sec)),
+        (f"Greedy({heuristic})", lambda s, c: greedy(s, c, heuristic=heuristic, time_limit_sec=time_limit_sec)),
+        (f"A*({heuristic})", lambda s, c: astar(s, c, heuristic=heuristic, time_limit_sec=time_limit_sec)),
+        (f"W-A*(w={weight:.1f},{heuristic})", lambda s, c: weighted_astar(s, c, heuristic=heuristic, weight=weight, time_limit_sec=time_limit_sec)),
+    ]
+    c0,c1,c2,c3,c4,c5,c6 = 34,9,7,11,11,10,10
+    hdr = (f"{'Algorithm':<{c0}} {'Solved':>{c1}} {'Moves':>{c2}}"
+           f" {'Expanded':>{c3}} {'Generated':>{c4}}"
+           f" {'Mem(KB)':>{c5}} {'Time(s)':>{c6}}")
+    sep = '-' * len(hdr)
+    print()
+    print("===== BENCHMARK =====")
+    print(hdr)
+    print(sep)
+    for name, fn in entries:
+        r = fn(initial_state, capacity)
+        status = "Yes" if r.solved else ("Timeout" if r.timed_out else "No")
+        mv = str(len(r.moves)) if r.solved else "-"
+        print(f"{name:<{c0}} {status:>{c1}} {mv:>{c2}}"
+              f" {r.expanded:>{c3}} {r.generated:>{c4}}"
+              f" {r.peak_memory_kb:>{c5}.1f} {r.time_sec:>{c6}.4f}")
+    print(sep)
+    print()

@@ -10,6 +10,7 @@ from search import (
     dfs,
     greedy,
     iddfs,
+    run_benchmark,
     weighted_astar,
 )
 
@@ -44,7 +45,7 @@ IDDFS_MAX_DEPTH = 30
 DIFFICULTY_LEVELS = [
     ('Level 1 (6 tubes)', 6),
     ('Level 2 (8 tubes)', 8),
-    ('Level 3 (12 tubes)', 12),
+    ('Level 3 (10 tubes)', 10),
 ]
 DEFAULT_TUBES = 6
 selected_difficulty_idx = 0  # Start with Level 1
@@ -339,6 +340,7 @@ def print_ai_metrics(algorithm, result, heuristic_name='', weight=None):
     print(f'Number of moves: {len(result.moves)}')
     print(f'Expanded states: {result.expanded}')
     print(f'Generated states: {result.generated}')
+    print(f'Peak memory: {result.peak_memory_kb:.1f} KB')
     print(f'Elapsed time: {result.time_sec:.4f}s')
     print('======================')
 
@@ -628,6 +630,20 @@ def draw_menu(layout):
     screen.blit(status_title, (panel.x + 20, panel.bottom - 90))
     draw_wrapped_text(status_message, panel.x + 20, panel.bottom - 68, panel.width - 40, small_font, (220, 220, 220), max_lines=3)
 
+
+
+def _do_run_benchmark():
+    """Run all algorithms on the current board (output to console)."""
+    global status_message
+    current_state = to_state(tube_colors)
+    if is_goal(current_state, TUBE_CAPACITY):
+        status_message = 'Benchmark: already solved.'
+        return
+    status_message = 'Running benchmark... (see console)'
+    run_benchmark(current_state, TUBE_CAPACITY,
+                  heuristic=AI_HEURISTIC, weight=WEIGHTED_ASTAR_WEIGHT)
+
+
 # main game loop
 run = True
 while run:
@@ -654,6 +670,8 @@ while run:
                 new_game = True
                 status_message = 'Generating a new board...'
                 reset_ai(clear_metrics=True)
+            elif event.key == pygame.K_b and not ai_animating:
+                _do_run_benchmark()
 
         if event.type == pygame.MOUSEBUTTONDOWN:
             pos = event.pos
