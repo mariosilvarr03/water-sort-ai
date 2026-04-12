@@ -2,10 +2,6 @@
 
 Water Sort game project with Human and AI modes, implemented in Python with Pygame.
 
-![watersort_image1](images\image1_watersort.png)
-
-![watersort_image2](images\image2_watersort.png)
-
 ## How to start the game
 
 ### 1. Requirements
