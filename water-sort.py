@@ -271,7 +271,7 @@ def reset_ai(clear_metrics=False):
 
 
 def go_back_one_step():
-    """Revert the last move made by the player."""
+    # Revert the last move made by the player.
     global tube_colors, move_history, hint_message, status_message
     
     if not move_history:
@@ -285,7 +285,7 @@ def go_back_one_step():
 
 
 def get_hint():
-    """Get the next move suggested by BFS (optimal solution)."""
+    # Get the next move suggested by A*.
     global status_message, hint_message, tube_colors
     
     current_state = to_state(tube_colors)
@@ -295,8 +295,8 @@ def get_hint():
         status_message = 'Hint: Already solved.'
         return
     
-    # Use BFS to find optimal next move
-    result = bfs(current_state, TUBE_CAPACITY)
+    # Use A* to find optimal next move
+    result = astar(current_state, TUBE_CAPACITY)
     
     if not result.solved or not result.moves:
         hint_message = 'No solution found.'
@@ -310,7 +310,7 @@ def get_hint():
 
 
 def reset_ai(clear_metrics=False):
-    """Reset AI animation state and optionally clear metrics."""
+    # Reset AI animation state and optionally clear metrics.
     global ai_moves, ai_animating, ai_move_index, ai_next_move_tick, metrics_message
     global ai_last_result, ai_last_algorithm, ai_metrics_printed
     global ai_last_heuristic, ai_last_weight
@@ -633,7 +633,7 @@ def draw_menu(layout):
 
 
 def _do_run_benchmark():
-    """Run all algorithms on the current board (output to console)."""
+    # Run all algorithms on the current board (output to console).
     global status_message
     current_state = to_state(tube_colors)
     if is_goal(current_state, TUBE_CAPACITY):

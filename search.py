@@ -1,13 +1,12 @@
-"""Search algorithms for Water Sort.
-
-Includes uninformed and informed search methods used in the project:
-- BFS
-- DFS (depth-limited)
-- IDDFS
-- Greedy Best-First Search
-- A*
-- Weighted A*
-"""
+# Search algorithms for Water Sort.
+#
+# Includes uninformed and informed search methods used in the project:
+# - BFS
+# - DFS (depth-limited)
+# - IDDFS
+# - Greedy Best-First Search
+# - A*
+# - Weighted A*
 
 from __future__ import annotations
 
@@ -40,7 +39,7 @@ class SearchResult:
 
 
 def _track_memory(fn):
-    """Decorator: measures peak heap memory during a search call."""
+    # Decorator: measures peak heap memory during a search call.
     from functools import wraps
 
     @wraps(fn)
@@ -58,11 +57,10 @@ def _track_memory(fn):
 
 
 def h_color_boundaries(state: State, capacity: int) -> int:
-    """Lower bound based on color transitions inside tubes.
-
-    Each adjacent color change inside a tube creates one boundary.
-    A single move can remove at most one such boundary, so this is admissible.
-    """
+    # Lower bound based on color transitions inside tubes.
+    #
+    # Each adjacent color change inside a tube creates one boundary.
+    # A single move can remove at most one such boundary, so this is admissible.
     del capacity  # Unused but kept for a consistent heuristic signature.
 
     boundaries = 0
@@ -74,12 +72,11 @@ def h_color_boundaries(state: State, capacity: int) -> int:
 
 
 def h_split_colors(state: State, capacity: int) -> int:
-    """Lower bound based on color dispersion across tubes.
-
-    For each color appearing in k different tubes, at least (k - 1) merges
-    are needed to gather that color into one tube. Summing over colors gives
-    an admissible lower bound.
-    """
+    # Lower bound based on color dispersion across tubes.
+    #
+    # For each color appearing in k different tubes, at least (k - 1) merges
+    # are needed to gather that color into one tube. Summing over colors gives
+    # an admissible lower bound.
     del capacity  # Unused but kept for a consistent heuristic signature.
 
     color_to_tubes: dict[int | str, set[int]] = {}
@@ -99,7 +96,7 @@ DEFAULT_HEURISTIC = "h_split_colors"
 
 
 def available_heuristics() -> tuple[str, ...]:
-    """Return the list of heuristic names available to informed searches."""
+    # Return the list of heuristic names available to informed searches.
     return tuple(HEURISTICS.keys())
 
 
@@ -111,7 +108,7 @@ def _time_limit_reached(start_time: float, time_limit_sec: float | None) -> bool
 
 @_track_memory
 def bfs(initial_state: State, capacity: int, time_limit_sec: float | None = None) -> SearchResult:
-    """Run breadth-first search from an initial Water Sort state."""
+    # Run breadth-first search from an initial Water Sort state.
     start_time = perf_counter()
 
     if is_goal(initial_state, capacity):
@@ -185,7 +182,7 @@ def bfs(initial_state: State, capacity: int, time_limit_sec: float | None = None
 
 @_track_memory
 def dfs(initial_state: State, capacity: int, depth_limit: int = 30, time_limit_sec: float | None = None) -> SearchResult:
-    """Run depth-first search with a depth limit."""
+    # Run depth-first search with a depth limit.
     start_time = perf_counter()
 
     if is_goal(initial_state, capacity):
@@ -270,7 +267,7 @@ def dfs(initial_state: State, capacity: int, depth_limit: int = 30, time_limit_s
 
 @_track_memory
 def iddfs(initial_state: State, capacity: int, max_depth: int = 30, time_limit_sec: float | None = None) -> SearchResult:
-    """Run iterative deepening DFS up to max_depth."""
+    # Run iterative deepening DFS up to max_depth.
     start_time = perf_counter()
 
     if is_goal(initial_state, capacity):
@@ -356,7 +353,7 @@ def greedy(
     heuristic: str | HeuristicFn = DEFAULT_HEURISTIC,
     time_limit_sec: float | None = None,
 ) -> SearchResult:
-    """Run Greedy Best-First Search using f(n) = h(n)."""
+    # Run Greedy Best-First Search using f(n) = h(n).
     return _best_first_search(
         initial_state=initial_state,
         capacity=capacity,
@@ -374,7 +371,7 @@ def astar(
     heuristic: str | HeuristicFn = DEFAULT_HEURISTIC,
     time_limit_sec: float | None = None,
 ) -> SearchResult:
-    """Run A* using f(n) = g(n) + h(n)."""
+    # Run A* using f(n) = g(n) + h(n).
     return _best_first_search(
         initial_state=initial_state,
         capacity=capacity,
@@ -393,7 +390,7 @@ def weighted_astar(
     weight: float = 1.5,
     time_limit_sec: float | None = None,
 ) -> SearchResult:
-    """Run Weighted A* using f(n) = g(n) + w*h(n), with w >= 1."""
+    # Run Weighted A* using f(n) = g(n) + w*h(n), with w >= 1.
     if weight < 1.0:
         raise ValueError("Weighted A* requires weight >= 1.0.")
 
@@ -408,7 +405,7 @@ def weighted_astar(
 
 
 def _ordered_moves_for_dfs(state: State, capacity: int) -> list[Move]:
-    """Return DFS moves ordered and pruned to reduce obvious useless actions."""
+    # Return DFS moves ordered and pruned to reduce obvious useless actions.
     raw_moves = valid_moves(state, capacity)
     if not raw_moves:
         return []
@@ -482,7 +479,7 @@ def _depth_limited_search(
     start_time: float,
     time_limit_sec: float | None,
 ) -> tuple[bool, list[Move], State | None, int, int, int, int, bool]:
-    """Single DLS pass used by IDDFS."""
+    # Single DLS pass used by IDDFS.
     path_states: set[State] = {initial_state}
     path_moves: list[Move] = []
     seen_iter: set[State] = {initial_state}
@@ -572,7 +569,7 @@ def _reconstruct_path(
     parents: dict[State, tuple[State | None, Move | None]],
     goal_state: State,
 ) -> list[Move]:
-    """Rebuild the move sequence from start to goal using parent links."""
+    # Rebuild the move sequence from start to goal using parent links.
     path: list[Move] = []
     current = goal_state
 
@@ -614,7 +611,7 @@ def _best_first_search(
     weight: float,
     time_limit_sec: float | None = None,
 ) -> SearchResult:
-    """Shared engine for Greedy, A*, and Weighted A*."""
+    # Shared engine for Greedy, A*, and Weighted A*.
     start_time = perf_counter()
     heuristic_fn = _resolve_heuristic(heuristic)
 
@@ -709,7 +706,7 @@ def run_benchmark(
     weight: float = 1.5,
     time_limit_sec: float = 60.0,
 ) -> None:
-    """Run all algorithms on the same state and print a comparison table."""
+    # Run all algorithms on the same state and print a comparison table.
     entries = [
         ("BFS", lambda s, c: bfs(s, c, time_limit_sec=time_limit_sec)),
         ("DFS", lambda s, c: dfs(s, c, time_limit_sec=time_limit_sec)),
